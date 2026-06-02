@@ -1,0 +1,16 @@
+{
+  "name": "ygo-card-manager",
+  "version": "1.0.0",
+  "description": "Yu-Gi-Oh Auto-Battler card database manager",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "sharp": "^0.33.5"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
