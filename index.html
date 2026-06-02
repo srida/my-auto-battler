@@ -156,6 +156,101 @@ select.filter:focus { border-color: var(--accent); }
 .illus-import { display: flex; gap: 6px; }
 .illus-import input { flex: 1; }
 
+/* FAB + Back button (mobile) */
+.fab {
+  display: none; position: fixed; bottom: 24px; right: 20px;
+  width: 58px; height: 58px; border-radius: 50%;
+  background: var(--accent); color: #fff; font-size: 30px; line-height: 1;
+  border: none; cursor: pointer; z-index: 90;
+  align-items: center; justify-content: center;
+  box-shadow: 0 4px 20px rgba(108,99,255,.55); transition: transform .15s;
+}
+.fab:active { transform: scale(.9); }
+.back-btn {
+  display: none; align-items: center; gap: 6px;
+  background: none; border: none; color: var(--accent);
+  font-size: 14px; font-weight: 700; padding: 0 0 14px; cursor: pointer;
+}
+.back-btn::before { content: '←'; font-size: 18px; }
+.mobile-info { display: none; }
+
+@media (max-width: 768px) {
+  /* Topbar */
+  .topbar { padding: 10px 12px; gap: 8px; }
+  .topbar h1 { font-size: 14px; white-space: nowrap; }
+  .tab { padding: 5px 9px; font-size: 12px; }
+
+  /* Single-panel layout */
+  .main { position: relative; overflow: hidden; }
+  .sidebar {
+    width: 100%; position: absolute; inset: 0; z-index: 2;
+    transition: transform .25s cubic-bezier(.4,0,.2,1);
+  }
+  .content {
+    position: absolute; inset: 0; width: 100%; padding: 16px;
+    background: var(--bg); overflow-y: auto;
+    transform: translateX(105%);
+    transition: transform .25s cubic-bezier(.4,0,.2,1);
+  }
+  .main.show-detail .sidebar  { transform: translateX(-105%); pointer-events: none; }
+  .main.show-detail .content  { transform: translateX(0); pointer-events: auto; }
+
+  /* Stats tab — no sidebar, always visible */
+  #tab-stats .content {
+    transform: none !important; position: relative !important;
+    inset: auto !important; height: 100% !important;
+  }
+
+  /* FAB & back btn */
+  .fab      { display: flex; }
+  .back-btn { display: flex; }
+  .mobile-info { display: block; }
+
+  /* Forms: 1 column */
+  .form-grid  { grid-template-columns: 1fr !important; gap: 10px; }
+  .stats-grid { grid-template-columns: 1fr !important; }
+
+  /* Touch-friendly inputs (16px prevents iOS zoom-in) */
+  .field input, .field select, .field textarea {
+    padding: 12px 10px; font-size: 16px;
+  }
+  select.filter { padding: 8px; font-size: 12px; }
+  input[type=search] { font-size: 16px; padding: 10px; }
+
+  /* List items — bigger tap target */
+  .list-item { padding: 13px 14px; }
+
+  /* Buttons */
+  .btn { min-height: 44px; font-size: 14px; }
+  .actions { flex-wrap: wrap; gap: 8px; }
+
+  /* Illustration overlay always visible on touch */
+  .illustration-box .illus-overlay { opacity: 1; }
+  .illustration-box { width: 90px; height: 118px; }
+
+  /* Stats */
+  .stat-panel { padding: 14px 12px; }
+  .tier-overview-table { font-size: 11px; }
+  .tier-overview-table th, .tier-overview-table td { padding: 5px 7px; }
+  .mini-bar-track { min-width: 40px; }
+
+  /* Anomaly rows: simplified 2-col on mobile */
+  .anomaly-header { display: none; }
+  .anomaly-row {
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: 6px; padding: 10px 12px;
+  }
+  .anomaly-row .anomaly-col-pos,
+  .anomaly-row .anomaly-col-tier { display: none; }
+  .anomaly-row .anomaly-col-card { flex: 1; min-width: 0; }
+
+  /* Modal */
+  .modal { width: 96vw; padding: 18px; }
+
+  /* Threshold row */
+  .threshold-row { flex-wrap: wrap; gap: 6px; }
+}
+
 /* Stats tab */
 .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px; }
 .stats-grid.wide { grid-template-columns: 1fr; }
@@ -285,6 +380,9 @@ select.filter:focus { border-color: var(--accent); }
   </div>
 </div>
 
+<!-- FAB -->
+<button class="fab" id="fab" onclick="fabAction()">+</button>
+
 <!-- MODAL -->
 <div class="modal-backdrop hidden" id="modal-backdrop" onclick="closeModal(event)">
   <div class="modal" id="modal-content"></div>
@@ -337,6 +435,7 @@ function switchTab(tab) {
     if (match) el.classList.add('active');
   });
   if (tab === 'stats') renderStats();
+  showList(); // reset panel on tab switch
 }
 
 // ================== CARDS ==================
@@ -386,6 +485,7 @@ function selectCard(id) {
   isNewCard = false;
   filterCards();
   renderCardDetail();
+  showDetail();
 }
 
 function getArchName(id) {
@@ -409,6 +509,7 @@ function renderCardDetail() {
   const hasPower = c.power && c.power.id;
 
   el.innerHTML = `
+    <button class="back-btn" onclick="showList()">Retour à la liste</button>
     <div class="detail-header">
       <div class="illustration-box" id="illus-box">
         ${hasIllus ? `<img src="/illustrations/${c.id}" id="illus-img" alt="">` : `<svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" opacity=".3"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>`}
@@ -664,6 +765,7 @@ async function deleteCard() {
   selectedCard = null;
   filterCards();
   document.getElementById('card-detail').innerHTML = '<div class="empty"><span>Sélectionne une carte</span></div>';
+  showList();
   toast('Carte supprimée');
 }
 
@@ -682,6 +784,7 @@ function openNewCard() {
   isNewCard = true;
   renderCardList();
   renderCardDetail();
+  showDetail();
 }
 
 async function createCard() {
@@ -703,6 +806,7 @@ function cancelNew() {
   isNewCard = false;
   filterCards();
   document.getElementById('card-detail').innerHTML = '<div class="empty"><span>Sélectionne une carte</span></div>';
+  showList();
 }
 
 // Illustration
@@ -801,12 +905,14 @@ function selectArch(id) {
   isNewArch = false;
   renderArchList();
   renderArchDetail();
+  showDetail();
 }
 
 function renderArchDetail() {
   const a = selectedArch;
   const el = document.getElementById('arch-detail');
   el.innerHTML = `
+    <button class="back-btn" onclick="showList()">Retour à la liste</button>
     <div class="detail-header" style="align-items:center;gap:16px">
       <div style="font-size:48px">${a.icon || '❓'}</div>
       <div>
@@ -941,6 +1047,7 @@ async function deleteArchetype() {
   selectedArch = null;
   filterArchetypes();
   document.getElementById('arch-detail').innerHTML = '<div class="empty"><span>Sélectionne un archétype</span></div>';
+  showList();
   toast('Archétype supprimé');
 }
 
@@ -956,6 +1063,7 @@ function openNewArchetype() {
   isNewArch = true;
   renderArchList();
   renderArchDetail();
+  showDetail();
 }
 
 async function createArchetype() {
@@ -976,6 +1084,7 @@ function cancelNewArch() {
   isNewArch = false;
   filterArchetypes();
   document.getElementById('arch-detail').innerHTML = '<div class="empty"><span>Sélectionne un archétype</span></div>';
+  showList();
 }
 
 // ================== POWERS ==================
@@ -1002,12 +1111,14 @@ function selectPower(id) {
   isNewPower = false;
   renderPowerList();
   renderPowerDetail();
+  showDetail();
 }
 
 function renderPowerDetail() {
   const p = selectedPower;
   const el = document.getElementById('power-detail');
   el.innerHTML = `
+    <button class="back-btn" onclick="showList()">Retour à la liste</button>
     <div class="detail-title" style="margin-bottom:16px">⚡ ${p.name}</div>
     <div class="section-title">Identité</div>
     <div class="form-grid">
@@ -1050,6 +1161,7 @@ async function deletePower() {
   selectedPower = null;
   filterPowers();
   document.getElementById('power-detail').innerHTML = '<div class="empty"><span>Sélectionne un pouvoir</span></div>';
+  showList();
   toast('Pouvoir supprimé');
 }
 
@@ -1058,6 +1170,7 @@ function openNewPower() {
   isNewPower = true;
   renderPowerList();
   renderPowerDetail();
+  showDetail();
 }
 
 async function createPower() {
@@ -1082,6 +1195,31 @@ function cancelNewPower() {
   isNewPower = false;
   filterPowers();
   document.getElementById('power-detail').innerHTML = '<div class="empty"><span>Sélectionne un pouvoir</span></div>';
+  showList();
+}
+
+// ================== MOBILE ==================
+function isMobile() { return window.matchMedia('(max-width: 768px)').matches; }
+
+function showDetail() {
+  if (!isMobile()) return;
+  const panel = document.querySelector('.main:not(.hidden)');
+  if (panel) panel.classList.add('show-detail');
+  document.getElementById('fab').textContent = '←';
+  document.getElementById('fab').onclick = showList;
+}
+
+function showList() {
+  const panel = document.querySelector('.main.show-detail');
+  if (panel) panel.classList.remove('show-detail');
+  document.getElementById('fab').textContent = '+';
+  document.getElementById('fab').onclick = fabAction;
+}
+
+function fabAction() {
+  if (currentTab === 'cards')      openNewCard();
+  else if (currentTab === 'archetypes') openNewArchetype();
+  else if (currentTab === 'powers')     openNewPower();
 }
 
 // ================== UTILS ==================
@@ -1240,17 +1378,22 @@ function renderStats() {
         const zClass = severity >= 2.5 ? 'z-high' : 'z-mild';
         return `
           <div class="anomaly-row" onclick="jumpToCard('${o.card.id}')">
-            <div>
+            <div class="anomaly-col-card">
               <div style="font-weight:600">${esc(o.card.name)}</div>
               <div style="font-size:10px;color:var(--muted);font-family:monospace">${o.card.id}</div>
+              <div class="mobile-info" style="margin-top:4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                <span class="badge" style="background:${col}22;color:${col};font-size:10px">T${tier}</span>
+                <span style="font-size:11px;font-weight:600">${STAT_LABELS[o.stat]}</span>
+                <span class="${isHigh ? 'direction-high' : 'direction-low'}" style="font-size:12px;font-weight:700">${isHigh ? '▲' : '▼'} ${o.value.toFixed(1)}<span style="color:var(--muted);font-weight:400"> / ${o.avg.toFixed(1)}</span></span>
+              </div>
             </div>
-            <div><span class="badge" style="background:${col}22;color:${col};font-size:10px">T${tier}</span></div>
+            <div class="anomaly-col-tier"><span class="badge" style="background:${col}22;color:${col};font-size:10px">T${tier}</span></div>
             <div style="font-weight:600">${STAT_LABELS[o.stat]}</div>
             <div>
               <span class="${isHigh ? 'direction-high' : 'direction-low'}" style="font-weight:700">${isHigh ? '▲' : '▼'} ${o.value.toFixed(1)}</span>
               <span style="color:var(--muted)"> / ${o.avg.toFixed(1)}</span>
             </div>
-            <div>
+            <div class="anomaly-col-pos">
               <div class="mini-bar-track" style="min-width:80px">
                 <div class="mini-bar-fill" style="left:0;width:100%;background:${col};opacity:.1"></div>
                 <div class="mini-bar-fill" style="left:${avgPos}%;width:2px;background:var(--muted);opacity:.6"></div>
