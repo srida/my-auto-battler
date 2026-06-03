@@ -330,7 +330,10 @@ select.filter:focus { border-color: var(--accent); }
             <option value="transformation">Transformation</option>
           </select>
         </div>
-        <button class="btn btn-primary btn-sm" onclick="openNewCard()">+ Nouvelle carte</button>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-primary btn-sm" onclick="openNewCard()">+ Nouvelle carte</button>
+          <button class="btn btn-secondary btn-sm" onclick="openImportModal('cards')">Importer JSON</button>
+        </div>
       </div>
       <div class="sidebar-list" id="card-list"></div>
     </div>
@@ -347,7 +350,10 @@ select.filter:focus { border-color: var(--accent); }
           <input type="search" id="arch-search" placeholder="Rechercher..." oninput="filterArchetypes()">
           <span id="arch-count" class="count">0</span>
         </div>
-        <button class="btn btn-primary btn-sm" onclick="openNewArchetype()">+ Nouvel archétype</button>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-primary btn-sm" onclick="openNewArchetype()">+ Nouvel archétype</button>
+          <button class="btn btn-secondary btn-sm" onclick="openImportModal('archetypes')">Importer JSON</button>
+        </div>
       </div>
       <div class="sidebar-list" id="arch-list"></div>
     </div>
@@ -364,7 +370,10 @@ select.filter:focus { border-color: var(--accent); }
           <input type="search" id="power-search" placeholder="Rechercher..." oninput="filterPowers()">
           <span id="power-count" class="count">0</span>
         </div>
-        <button class="btn btn-primary btn-sm" onclick="openNewPower()">+ Nouveau pouvoir</button>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-primary btn-sm" onclick="openNewPower()">+ Nouveau pouvoir</button>
+          <button class="btn btn-secondary btn-sm" onclick="openImportModal('powers')">Importer JSON</button>
+        </div>
       </div>
       <div class="sidebar-list" id="power-list"></div>
     </div>
@@ -1443,6 +1452,98 @@ function jumpToCard(id) {
     const item = document.querySelector(`#card-list .list-item.selected`);
     if (item) item.scrollIntoView({ block: 'nearest' });
   }, 50);
+}
+
+// ================== IMPORT JSON ==================
+let importType = null;
+let importItems = null;
+
+const IMPORT_LABELS = { cards: 'cartes', archetypes: 'archétypes', powers: 'pouvoirs' };
+
+function openImportModal(type) {
+  importType = type;
+  importItems = null;
+  showModal(`
+    <h2>Importer des ${IMPORT_LABELS[type]}</h2>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:14px">
+      Sélectionne un fichier JSON contenant un tableau d'objets ou un objet avec une clé <code>${type}</code>.
+    </p>
+    <div class="field">
+      <label>Fichier JSON</label>
+      <input type="file" id="import-file" accept=".json" onchange="previewImport()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;width:100%">
+    </div>
+    <div id="import-preview" class="hidden" style="margin-top:12px">
+      <div id="import-preview-info" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;font-size:13px;margin-bottom:12px"></div>
+      <div class="field">
+        <label>En cas de doublon (même ID)</label>
+        <select id="import-mode">
+          <option value="skip">Ignorer (conserver l'existant)</option>
+          <option value="replace">Remplacer (écraser l'existant)</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Annuler</button>
+      <button class="btn btn-primary" id="import-confirm-btn" disabled onclick="confirmImport()">Importer</button>
+    </div>
+  `);
+}
+
+function previewImport() {
+  const file = document.getElementById('import-file')?.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      let parsed = JSON.parse(e.target.result);
+      if (Array.isArray(parsed)) {
+        importItems = parsed;
+      } else if (parsed && Array.isArray(parsed[importType])) {
+        importItems = parsed[importType];
+      } else {
+        importItems = null;
+        toast('Format invalide : tableau attendu', 'err');
+        return;
+      }
+      const preview = document.getElementById('import-preview');
+      const info = document.getElementById('import-preview-info');
+      const btn = document.getElementById('import-confirm-btn');
+      if (preview) preview.classList.remove('hidden');
+      if (info) info.textContent = `${importItems.length} élément${importItems.length !== 1 ? 's' : ''} trouvé${importItems.length !== 1 ? 's' : ''} dans le fichier.`;
+      if (btn) btn.disabled = false;
+    } catch {
+      importItems = null;
+      toast('Fichier JSON invalide', 'err');
+    }
+  };
+  reader.readAsText(file);
+}
+
+async function confirmImport() {
+  if (!importItems || !importType) return;
+  const mode = document.getElementById('import-mode')?.value || 'skip';
+  closeModal();
+  const endpoint = `/api/${importType}/import`;
+  const res = await apiFetch(endpoint, { method: 'POST', body: { items: importItems, mode } });
+  if (res.error) return toast(res.error, 'err');
+
+  // Reload data from server
+  if (importType === 'cards') {
+    cards = await apiFetch('/api/cards');
+    filterCards();
+  } else if (importType === 'archetypes') {
+    archetypes = await apiFetch('/api/archetypes');
+    filterArchetypes();
+  } else if (importType === 'powers') {
+    powers = await apiFetch('/api/powers');
+    filterPowers();
+  }
+
+  const parts = [];
+  if (res.added)    parts.push(`${res.added} ajouté${res.added !== 1 ? 's' : ''}`);
+  if (res.replaced) parts.push(`${res.replaced} remplacé${res.replaced !== 1 ? 's' : ''}`);
+  if (res.skipped)  parts.push(`${res.skipped} ignoré${res.skipped !== 1 ? 's' : ''}`);
+  toast(`Import terminé : ${parts.join(', ') || 'aucun changement'}`);
 }
 
 // ================== BOOT ==================
