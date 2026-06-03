@@ -533,6 +533,16 @@ function getCardName(id) {
   const c = cards.find(x => x.id === id);
   return c ? c.name : id;
 }
+function getMaterialName(id) {
+  const c = cards.find(x => x.id === id);
+  if (c) return c.name;
+  const a = archetypes.find(x => x.id === id);
+  if (a) return (a.icon ? a.icon + ' ' : '') + a.name;
+  return id;
+}
+function isMaterialArchetype(id) {
+  return !cards.find(x => x.id === id) && !!archetypes.find(x => x.id === id);
+}
 
 function renderCardDetail() {
   const c = selectedCard;
@@ -573,7 +583,7 @@ function renderCardDetail() {
         </select>
       </div>
       <div class="field"><label>Type d'invocation</label>
-        <select id="f-summon">
+        <select id="f-summon" onchange="onSummonTypeChange(this.value)">
           ${['normal','sacrifice','fusion','rituel','transformation'].map(s => `<option value="${s}" ${c.summon_type===s?'selected':''}>${summonLabel(s)}</option>`).join('')}
         </select>
       </div>
@@ -606,17 +616,23 @@ function renderCardDetail() {
       <div class="field"><label>Sacrifices requis</label><input type="number" id="f-sac" value="${c.cost.sacrifice}" min="0" step="1"></div>
     </div>
     <div id="materials-section">
-      <div style="font-size:11px;color:var(--muted);margin-top:10px;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;font-weight:600">Matériaux de fusion/rituel</div>
+      <div id="material-section-label" style="font-size:11px;color:var(--muted);margin-top:10px;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;font-weight:600">${c.summon_type === 'rituel' ? 'Matériaux de rituel' : 'Matériaux de fusion/rituel'}</div>
       <div class="materials-list" id="materials-list">
-        ${(c.cost.materials || []).map(mid => `
+        ${(c.cost.materials || []).map(mid => {
+          const isArch = !cards.find(x => x.id === mid) && !!archetypes.find(x => x.id === mid);
+          return `
           <div class="material-item" data-mid="${mid}">
-            <span>${mid} — ${esc(getCardName(mid))}</span>
+            <span style="display:flex;align-items:center;gap:6px">
+              ${isArch ? `<span style="font-size:10px;background:#6ab4e822;color:#6ab4e8;border-radius:4px;padding:1px 5px;white-space:nowrap">Archétype</span>` : ''}
+              <span>${esc(getMaterialName(mid))}</span>
+              <span style="font-size:10px;color:var(--muted);font-family:monospace">${mid}</span>
+            </span>
             <button onclick="removeMaterial('${mid}')">×</button>
-          </div>
-        `).join('')}
+          </div>`;
+        }).join('')}
       </div>
       <div style="position:relative;margin-top:8px" id="material-search-wrap">
-        <input type="text" id="material-search" placeholder="Rechercher une carte à ajouter..." autocomplete="off"
+        <input type="text" id="material-search" placeholder="${c.summon_type === 'rituel' ? 'Rechercher une carte ou un archétype...' : 'Rechercher une carte à ajouter...'}" autocomplete="off"
           oninput="filterMaterialSearch()" onfocus="showMaterialDropdown()" onblur="hideMaterialDropdown()"
           style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;outline:none;font-size:13px">
         <div id="material-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:50;background:var(--surface);border:1px solid var(--border);border-radius:6px;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.4);margin-top:3px"></div>
@@ -666,11 +682,26 @@ function removeMaterial(mid) {
 
 function filterMaterialSearch() {
   const q = document.getElementById('material-search')?.value.toLowerCase() || '';
+  const summon = document.getElementById('f-summon')?.value;
   const current = selectedCard.cost?.materials || [];
-  const results = cards
+
+  const matchedCards = cards
     .filter(x => x.id !== selectedCard.id && !current.includes(x.id))
     .filter(x => !q || x.name.toLowerCase().includes(q) || x.id.toLowerCase().includes(q))
-    .slice(0, 30);
+    .slice(0, 20)
+    .map(x => ({ ...x, _matType: 'card' }));
+
+  let results = matchedCards;
+
+  if (summon === 'rituel') {
+    const matchedArchs = archetypes
+      .filter(a => !current.includes(a.id))
+      .filter(a => !q || a.name.toLowerCase().includes(q) || a.id.toLowerCase().includes(q))
+      .slice(0, 10)
+      .map(a => ({ ...a, _matType: 'archetype' }));
+    results = [...matchedArchs, ...matchedCards];
+  }
+
   renderMaterialDropdown(results);
 }
 
@@ -678,20 +709,35 @@ function renderMaterialDropdown(results) {
   const dd = document.getElementById('material-dropdown');
   if (!dd) return;
   if (!results.length) {
-    dd.innerHTML = '<div style="padding:10px 14px;color:var(--muted);font-size:12px">Aucune carte trouvée</div>';
+    dd.innerHTML = '<div style="padding:10px 14px;color:var(--muted);font-size:12px">Aucun résultat</div>';
   } else {
-    dd.innerHTML = results.map(x => `
-      <div onmousedown="addMaterial('${x.id}')"
-        style="padding:8px 14px;cursor:pointer;display:flex;gap:8px;align-items:center;border-bottom:1px solid var(--border)"
-        onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
-        <div>
-          <div style="font-size:13px">${esc(x.name)}</div>
-          <div style="font-size:11px;color:var(--muted);font-family:monospace">${x.id} · T${Math.round(x.tier)} · ${summonLabel(x.summon_type)}</div>
-        </div>
-      </div>
-    `).join('');
+    dd.innerHTML = results.map(x => {
+      const isArch = x._matType === 'archetype';
+      const sub = isArch
+        ? `<span style="font-size:10px;background:#6ab4e822;color:#6ab4e8;border-radius:4px;padding:1px 5px">Archétype</span>`
+        : `<span style="font-size:11px;color:var(--muted);font-family:monospace">${x.id} · T${Math.round(x.tier)} · ${summonLabel(x.summon_type)}</span>`;
+      return `
+        <div onmousedown="addMaterial('${x.id}')"
+          style="padding:8px 14px;cursor:pointer;display:flex;gap:8px;align-items:center;border-bottom:1px solid var(--border)"
+          onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+          ${isArch ? `<span style="font-size:16px">${x.icon || '🔷'}</span>` : ''}
+          <div>
+            <div style="font-size:13px">${esc(x.name)}</div>
+            <div style="margin-top:2px">${sub}</div>
+          </div>
+        </div>`;
+    }).join('');
   }
   dd.style.display = 'block';
+}
+
+function onSummonTypeChange(val) {
+  syncCardFromForm();
+  const label = document.getElementById('material-section-label');
+  const input = document.getElementById('material-search');
+  if (label) label.textContent = val === 'rituel' ? 'Matériaux de rituel' : 'Matériaux de fusion/rituel';
+  if (input) input.placeholder = val === 'rituel' ? 'Rechercher une carte ou un archétype...' : 'Rechercher une carte à ajouter...';
+  filterMaterialSearch();
 }
 
 function showMaterialDropdown() {
