@@ -92,6 +92,30 @@ app.post('/api/cards', (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+app.post('/api/cards/import', (req, res) => {
+  try {
+    const { items, mode = 'skip' } = req.body;
+    if (!Array.isArray(items)) return res.status(400).json({ error: 'items doit être un tableau' });
+    const cards = readJson(CARDS_FILE);
+    let added = 0, replaced = 0, skipped = 0;
+    const errors = [];
+    for (const item of items) {
+      if (!item.id) { errors.push('Élément sans ID ignoré'); continue; }
+      delete item._has_illustration;
+      const idx = cards.findIndex(c => c.id === item.id);
+      if (idx !== -1) {
+        if (mode === 'replace') { cards[idx] = item; replaced++; }
+        else skipped++;
+      } else {
+        cards.push(item);
+        added++;
+      }
+    }
+    writeJson(CARDS_FILE, cards);
+    res.json({ ok: true, added, replaced, skipped, errors });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.put('/api/cards/:id', (req, res) => {
   try {
     const cards = readJson(CARDS_FILE);
@@ -165,6 +189,29 @@ app.post('/api/archetypes', (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+app.post('/api/archetypes/import', (req, res) => {
+  try {
+    const { items, mode = 'skip' } = req.body;
+    if (!Array.isArray(items)) return res.status(400).json({ error: 'items doit être un tableau' });
+    const archetypes = readJson(ARCHETYPES_FILE);
+    let added = 0, replaced = 0, skipped = 0;
+    const errors = [];
+    for (const item of items) {
+      if (!item.id) { errors.push('Élément sans ID ignoré'); continue; }
+      const idx = archetypes.findIndex(a => a.id === item.id);
+      if (idx !== -1) {
+        if (mode === 'replace') { archetypes[idx] = item; replaced++; }
+        else skipped++;
+      } else {
+        archetypes.push(item);
+        added++;
+      }
+    }
+    writeJson(ARCHETYPES_FILE, archetypes);
+    res.json({ ok: true, added, replaced, skipped, errors });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.put('/api/archetypes/:id', (req, res) => {
   try {
     const archetypes = readJson(ARCHETYPES_FILE);
@@ -201,6 +248,29 @@ app.post('/api/powers', (req, res) => {
     powers.push(power);
     writeJson(POWERS_FILE, powers);
     res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/powers/import', (req, res) => {
+  try {
+    const { items, mode = 'skip' } = req.body;
+    if (!Array.isArray(items)) return res.status(400).json({ error: 'items doit être un tableau' });
+    const powers = readJson(POWERS_FILE);
+    let added = 0, replaced = 0, skipped = 0;
+    const errors = [];
+    for (const item of items) {
+      if (!item.id) { errors.push('Élément sans ID ignoré'); continue; }
+      const idx = powers.findIndex(p => p.id === item.id);
+      if (idx !== -1) {
+        if (mode === 'replace') { powers[idx] = item; replaced++; }
+        else skipped++;
+      } else {
+        powers.push(item);
+        added++;
+      }
+    }
+    writeJson(POWERS_FILE, powers);
+    res.json({ ok: true, added, replaced, skipped, errors });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
