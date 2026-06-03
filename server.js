@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const http = require('http');
+const crypto = require('crypto');
 
 const app = express();
 app.use(express.json({ limit: '20mb' }));
@@ -69,6 +70,12 @@ function writeJson(file, data) {
 
 function illustrationExists(id) {
   return fs.existsSync(path.join(ILLUS_DIR, `${id}.png`));
+}
+
+function illustrationChecksum(id) {
+  const p = path.join(ILLUS_DIR, `${id}.png`);
+  if (!fs.existsSync(p)) return null;
+  return crypto.createHash('md5').update(fs.readFileSync(p)).digest('hex');
 }
 
 // --- Cards API ---
@@ -304,7 +311,10 @@ app.get('/api/export', (req, res) => {
     const powers     = readJson(POWERS_FILE);
     const illustrations = fs.readdirSync(ILLUS_DIR)
       .filter(f => f.endsWith('.png'))
-      .map(f => f.replace('.png', ''));
+      .map(f => {
+        const id = f.replace('.png', '');
+        return { id, checksum: illustrationChecksum(id) };
+      });
     res.json({ cards, archetypes, powers, illustrations });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

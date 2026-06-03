@@ -206,7 +206,7 @@ select.filter:focus { border-color: var(--accent); }
   /* FAB & back btn */
   .fab      { display: flex; }
   .back-btn { display: flex; }
-  .mobile-info { display: block; }
+  .mobile-info { display: flex; flex-direction: column; gap: 5px; }
 
   /* Forms: 1 column */
   .form-grid  { grid-template-columns: 1fr !important; gap: 10px; }
@@ -250,19 +250,22 @@ select.filter:focus { border-color: var(--accent); }
   .threshold-row { flex-wrap: wrap; gap: 6px; }
   .threshold-row input[type=range] { width: 100%; order: 3; }
 
-  /* Anomaly rows mobile — card + z-chip, reste dans mobile-info */
-  .anomaly-header { display: none; }
+  /* Anomaly rows mobile */
+  .anomaly-header { display: none !important; }
   .anomaly-row {
-    display: flex; align-items: flex-start; justify-content: space-between;
-    gap: 10px; padding: 12px 14px;
+    display: flex !important; align-items: flex-start; justify-content: space-between;
+    gap: 12px; padding: 14px;
   }
   .anomaly-row .anomaly-col-pos,
   .anomaly-row .anomaly-col-tier,
   .anomaly-row .anomaly-col-stat,
-  .anomaly-row .anomaly-col-val { display: none; }
+  .anomaly-row .anomaly-col-val { display: none !important; }
   .anomaly-row .anomaly-col-card { flex: 1; min-width: 0; }
   .anomaly-col-id { display: none; }
-  .anomaly-row .z-chip { font-size: 11px; padding: 3px 9px; margin-top: 1px; }
+  /* Card name: wrap autorisé sur 2 lignes */
+  .anomaly-name { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; font-size: 14px !important; line-height: 1.3; }
+  /* Z-chip: plus grand, ne se rétrécit pas */
+  .anomaly-row .z-chip { font-size: 13px !important; padding: 5px 11px !important; flex-shrink: 0 !important; margin-top: 2px; }
 
   /* Modal */
   .modal { width: 96vw; padding: 18px; }
@@ -1499,17 +1502,17 @@ function renderStats() {
         return `
           <div class="anomaly-row" onclick="jumpToCard('${o.card.id}')">
             <div class="anomaly-col-card">
-              <div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(o.card.name)}</div>
+              <div class="anomaly-name" style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(o.card.name)}</div>
               <div class="anomaly-col-id" style="font-size:10px;color:var(--muted);font-family:monospace">${o.card.id}</div>
-              <div class="mobile-info" style="margin-top:6px;display:flex;flex-direction:column;gap:4px">
-                <div style="display:flex;align-items:center;gap:6px">
-                  <span class="badge" style="background:${col}22;color:${col};font-size:10px">T${tier}</span>
-                  <span style="font-size:10px;color:var(--muted);font-family:monospace">${o.card.id}</span>
+              <div class="mobile-info" style="margin-top:7px">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+                  <span class="badge" style="background:${col}22;color:${col};font-size:11px;font-weight:700;padding:2px 8px">T${tier}</span>
+                  <span style="font-size:11px;color:var(--muted);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${o.card.id}</span>
                 </div>
-                <div style="font-size:12px">
-                  <span style="color:var(--muted);font-weight:600">${STAT_LABELS[o.stat]}</span>
-                  <span class="${isHigh ? 'direction-high' : 'direction-low'}" style="font-weight:700;margin-left:5px">${isHigh ? '▲' : '▼'} ${o.value.toFixed(1)}</span>
-                  <span style="color:var(--muted);font-size:11px"> / moy. ${o.avg.toFixed(1)}</span>
+                <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                  <span style="font-size:13px;color:var(--text);font-weight:700">${STAT_LABELS[o.stat]}</span>
+                  <span class="${isHigh ? 'direction-high' : 'direction-low'}" style="font-size:14px;font-weight:800;margin:0 5px">${isHigh ? '▲' : '▼'} ${o.value.toFixed(1)}</span>
+                  <span style="color:var(--muted);font-size:12px">vs ${o.avg.toFixed(1)}</span>
                 </div>
               </div>
             </div>
