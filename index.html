@@ -820,18 +820,57 @@ function cancelNew() {
 
 // Illustration
 function openIllusModal() {
+  const cardName = selectedCard?.name || '';
+  const defaultQuery = `yugioh illustration ${cardName}`.trim();
   showModal(`
-    <h2>Importer une illustration</h2>
-    <p style="color:var(--muted);font-size:12px;margin-bottom:14px">L'image sera téléchargée, convertie en PNG et sauvegardée sous <code>${selectedCard.id}.png</code></p>
+    <h2 style="margin-bottom:16px">Illustration — ${esc(cardName)}</h2>
+
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:16px">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:600;letter-spacing:.5px;margin-bottom:10px">Recherche Google Images</div>
+      <div class="field" style="margin-bottom:10px">
+        <label>Mots-clés</label>
+        <input id="illus-search-q" value="${esc(defaultQuery)}" style="font-family:monospace;font-size:12px">
+      </div>
+      <button class="btn btn-secondary" onclick="openImageSearch()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M21.35 11.1h-9.17v2.73h6.51c-.33 3.81-3.5 5.44-6.5 5.44C8.36 19.27 5 16.28 5 12c0-4.2 3.29-7.27 7.19-7.27 3.09 0 4.9 1.97 4.9 1.97L19 4.72S16.56 2 12.1 2C6.42 2 2.03 6.8 2.03 12c0 5.05 4.13 10 10.22 10 5.35 0 9.25-3.67 9.25-9.09 0-1.15-.15-1.81-.15-1.81z"/></svg>
+        Ouvrir Google Images ↗
+      </button>
+      <div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.6;border-top:1px solid var(--border);padding-top:10px">
+        Clic droit sur l'image souhaitée →
+        <strong style="color:var(--text)">Copier l'adresse de l'image</strong>
+        → coller dans le champ ci-dessous.
+      </div>
+    </div>
+
     <div class="field">
       <label>URL de l'image</label>
-      <input id="illus-url" type="text" placeholder="https://..." style="width:100%">
+      <div style="display:flex;gap:6px">
+        <input id="illus-url" type="text" placeholder="https://..." style="flex:1">
+        <button class="btn btn-secondary btn-sm" onclick="pasteIllusUrl()" title="Coller depuis le presse-papier" style="flex-shrink:0;font-size:16px;padding:0 10px">📋</button>
+      </div>
+      <span style="font-size:11px;color:var(--muted);margin-top:4px">Sauvegardée sous <code>${selectedCard.id}.png</code></span>
     </div>
+
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeModal()">Annuler</button>
       <button class="btn btn-primary" onclick="importIllustration()">Importer</button>
     </div>
-  `);
+  `, 'wide');
+}
+
+function openImageSearch() {
+  const q = document.getElementById('illus-search-q')?.value || `yugioh illustration ${selectedCard?.name || ''}`;
+  window.open(`https://www.google.com/search?q=${encodeURIComponent(q)}&tbm=isch`, '_blank');
+}
+
+async function pasteIllusUrl() {
+  try {
+    const text = await navigator.clipboard.readText();
+    const el = document.getElementById('illus-url');
+    if (el) el.value = text;
+  } catch {
+    toast('Accès presse-papier refusé — collez manuellement (Ctrl+V)', 'err');
+  }
 }
 
 async function importIllustration() {
@@ -1236,8 +1275,10 @@ function esc(str) {
   return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-function showModal(html) {
-  document.getElementById('modal-content').innerHTML = html;
+function showModal(html, size = '') {
+  const modal = document.getElementById('modal-content');
+  modal.style.width = size === 'wide' ? '580px' : '';
+  modal.innerHTML = html;
   document.getElementById('modal-backdrop').classList.remove('hidden');
 }
 
