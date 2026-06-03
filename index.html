@@ -250,17 +250,19 @@ select.filter:focus { border-color: var(--accent); }
   .threshold-row { flex-wrap: wrap; gap: 6px; }
   .threshold-row input[type=range] { width: 100%; order: 3; }
 
-  /* Anomaly rows: card + z-chip only, reste dans mobile-info */
+  /* Anomaly rows mobile — card + z-chip, reste dans mobile-info */
   .anomaly-header { display: none; }
   .anomaly-row {
-    display: flex; align-items: center; justify-content: space-between;
-    gap: 8px; padding: 10px 12px;
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 10px; padding: 12px 14px;
   }
   .anomaly-row .anomaly-col-pos,
   .anomaly-row .anomaly-col-tier,
   .anomaly-row .anomaly-col-stat,
   .anomaly-row .anomaly-col-val { display: none; }
   .anomaly-row .anomaly-col-card { flex: 1; min-width: 0; }
+  .anomaly-col-id { display: none; }
+  .anomaly-row .z-chip { font-size: 11px; padding: 3px 9px; margin-top: 1px; }
 
   /* Modal */
   .modal { width: 96vw; padding: 18px; }
@@ -1451,12 +1453,18 @@ function renderStats() {
         return `
           <div class="anomaly-row" onclick="jumpToCard('${o.card.id}')">
             <div class="anomaly-col-card">
-              <div style="font-weight:600">${esc(o.card.name)}</div>
-              <div style="font-size:10px;color:var(--muted);font-family:monospace">${o.card.id}</div>
-              <div class="mobile-info" style="margin-top:4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-                <span class="badge" style="background:${col}22;color:${col};font-size:10px">T${tier}</span>
-                <span style="font-size:11px;font-weight:600">${STAT_LABELS[o.stat]}</span>
-                <span class="${isHigh ? 'direction-high' : 'direction-low'}" style="font-size:12px;font-weight:700">${isHigh ? '▲' : '▼'} ${o.value.toFixed(1)}<span style="color:var(--muted);font-weight:400"> / ${o.avg.toFixed(1)}</span></span>
+              <div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(o.card.name)}</div>
+              <div class="anomaly-col-id" style="font-size:10px;color:var(--muted);font-family:monospace">${o.card.id}</div>
+              <div class="mobile-info" style="margin-top:6px;display:flex;flex-direction:column;gap:4px">
+                <div style="display:flex;align-items:center;gap:6px">
+                  <span class="badge" style="background:${col}22;color:${col};font-size:10px">T${tier}</span>
+                  <span style="font-size:10px;color:var(--muted);font-family:monospace">${o.card.id}</span>
+                </div>
+                <div style="font-size:12px">
+                  <span style="color:var(--muted);font-weight:600">${STAT_LABELS[o.stat]}</span>
+                  <span class="${isHigh ? 'direction-high' : 'direction-low'}" style="font-weight:700;margin-left:5px">${isHigh ? '▲' : '▼'} ${o.value.toFixed(1)}</span>
+                  <span style="color:var(--muted);font-size:11px"> / moy. ${o.avg.toFixed(1)}</span>
+                </div>
               </div>
             </div>
             <div class="anomaly-col-tier"><span class="badge" style="background:${col}22;color:${col};font-size:10px">T${tier}</span></div>
