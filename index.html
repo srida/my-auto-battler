@@ -55,7 +55,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', syste
 
 /* Card detail */
 .detail-header { display: flex; align-items: flex-start; gap: 20px; margin-bottom: 24px; }
-.illustration-box { width: 120px; height: 160px; background: var(--surface2); border: 2px dashed var(--border); border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; cursor: pointer; flex-shrink: 0; position: relative; overflow: hidden; }
+.illustration-box { width: 120px; height: 120px; background: var(--surface2); border: 2px dashed var(--border); border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; cursor: pointer; flex-shrink: 0; position: relative; overflow: hidden; }
 .illustration-box img { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; }
 .illustration-box .illus-overlay { position: absolute; inset: 0; background: rgba(0,0,0,.7); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; opacity: 0; transition: opacity .2s; }
 .illustration-box:hover .illus-overlay { opacity: 1; }
@@ -228,7 +228,7 @@ select.filter:focus { border-color: var(--accent); }
 
   /* Illustration overlay always visible on touch */
   .illustration-box .illus-overlay { opacity: 1; }
-  .illustration-box { width: 90px; height: 118px; }
+  .illustration-box { width: 90px; height: 90px; }
 
   /* Stats */
   #tab-stats .content { padding: 12px !important; }
