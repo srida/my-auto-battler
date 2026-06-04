@@ -101,6 +101,10 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', syste
 .slider-marks { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin-top: 1px; }
 
 .section-title { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; font-weight: 700; margin: 20px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+.set-picker-row { display: flex; align-items: center; gap: 6px; }
+.set-sep { font-size: 16px; font-weight: 700; color: var(--muted); flex-shrink: 0; padding: 0 2px; }
+.set-num { width: 70px !important; text-align: center; font-family: monospace; flex-shrink: 0; }
+.set-result-id { margin-top: 5px; font-family: monospace; font-size: 12px; background: var(--surface2); color: var(--muted); }
 
 /* Stats grid */
 .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
@@ -575,6 +579,27 @@ function renderCardDetail() {
   const hasIllus = c._has_illustration;
   const hasPower = c.power && c.power.id;
 
+  let idFieldHtml;
+  if (isNewCard) {
+    const allSets = getSets();
+    const lastSet = localStorage.getItem('lastSet') || '';
+    const curSet = allSets.includes(lastSet) ? lastSet : allSets[0];
+    const nextN = getNextNumForSet(curSet);
+    const initId = `${curSet}_${String(nextN).padStart(3, '0')}`;
+    selectedCard.id = initId;
+    const setOpts = allSets.map(s => `<option value="${s}" ${s === curSet ? 'selected' : ''}>${s}</option>`).join('');
+    idFieldHtml = `
+      <div class="set-picker-row">
+        <select id="f-set" onchange="onSetChange()" style="flex:1;min-width:90px">${setOpts}<option value="__new__">+ Nouveau set…</option></select>
+        <div id="f-set-new-wrap" style="display:none;flex:1"><input id="f-set-new" placeholder="NOM_DU_SET" oninput="syncIdFromSet()" style="width:100%;font-family:monospace;text-transform:uppercase"></div>
+        <span class="set-sep">_</span>
+        <input type="number" id="f-num" min="1" value="${nextN}" oninput="syncIdFromSet()" class="set-num">
+      </div>
+      <input id="f-id" value="${initId}" class="set-result-id" placeholder="CORE_001">`;
+  } else {
+    idFieldHtml = `<input id="f-id" value="${esc(c.id)}" placeholder="CORE_001">`;
+  }
+
   el.innerHTML = `
     <button class="back-btn" onclick="showList()">Retour à la liste</button>
     <div class="detail-header">
@@ -599,7 +624,7 @@ function renderCardDetail() {
 
     <div class="section-title">Identité</div>
     <div class="form-grid">
-      <div class="field"><label>ID</label><input id="f-id" value="${c.id}" placeholder="CORE_001"></div>
+      <div class="field"><label>ID</label>${idFieldHtml}</div>
       <div class="field"><label>Nom</label><input id="f-name" value="${esc(c.name)}" placeholder="Nom de la carte"></div>
       <div class="field">
         <label>Tier <span class="slider-val" id="f-tier-val">${Math.round(c.tier)}</span></label>
@@ -892,12 +917,62 @@ async function deleteCard() {
   toast('Carte supprimée');
 }
 
+function getSets() {
+  const sets = new Set();
+  for (const c of cards) {
+    const m = c.id.match(/^(.+)_(\d+)$/);
+    if (m) sets.add(m[1]);
+  }
+  if (sets.size === 0) sets.add('CORE');
+  return [...sets].sort();
+}
+
+function getNextNumForSet(setName) {
+  const escaped = setName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`^${escaped}_(\\d+)$`);
+  let max = 0;
+  for (const c of cards) {
+    const m = c.id.match(re);
+    if (m) max = Math.max(max, parseInt(m[1]));
+  }
+  return max + 1;
+}
+
+function onSetChange() {
+  const sel = document.getElementById('f-set');
+  const newWrap = document.getElementById('f-set-new-wrap');
+  if (!sel) return;
+  if (sel.value === '__new__') {
+    if (newWrap) newWrap.style.display = '';
+    document.getElementById('f-set-new')?.focus();
+  } else {
+    if (newWrap) newWrap.style.display = 'none';
+    const numInput = document.getElementById('f-num');
+    if (numInput) numInput.value = getNextNumForSet(sel.value);
+  }
+  syncIdFromSet();
+}
+
+function syncIdFromSet() {
+  const sel = document.getElementById('f-set');
+  if (!sel) return;
+  const setName = sel.value === '__new__'
+    ? (document.getElementById('f-set-new')?.value.trim().toUpperCase() || '')
+    : sel.value;
+  const num = parseInt(document.getElementById('f-num')?.value) || 1;
+  const idInput = document.getElementById('f-id');
+  if (idInput && setName) {
+    idInput.value = `${setName}_${String(num).padStart(3, '0')}`;
+    localStorage.setItem('lastSet', setName);
+  }
+}
+
 function openNewCard() {
-  const nextNum = cards.reduce((max, c) => {
-    const m = c.id.match(/CORE_(\d+)/);
-    return m ? Math.max(max, parseInt(m[1])) : max;
-  }, 0) + 1;
-  const newId = `CORE_${String(nextNum).padStart(3, '0')}`;
+  const allSets = getSets();
+  const lastSet = localStorage.getItem('lastSet') || '';
+  const currentSet = allSets.includes(lastSet) ? lastSet : allSets[0];
+  const nextNum = getNextNumForSet(currentSet);
+  const newId = `${currentSet}_${String(nextNum).padStart(3, '0')}`;
 
   selectedCard = {
     id: newId, name: '', type: 'monster', tier: 1, summon_type: 'normal',
