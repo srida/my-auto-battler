@@ -314,6 +314,9 @@ select.filter:focus { border-color: var(--accent); }
 .spark-bar { width: 5px; border-radius: 2px 2px 0 0; background: var(--accent); opacity: .6; }
 .spark-bar.highlight { opacity: 1; background: var(--accent2); }
 .no-anomalies { padding: 24px; text-align: center; color: var(--muted); font-size: 13px; }
+.broken-link-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background .1s; font-size: 12px; }
+.broken-link-row:hover { background: var(--surface2); }
+.broken-link-row:last-child { border-bottom: none; }
 </style>
 </head>
 <body>
@@ -1431,6 +1434,25 @@ function detectOutliers(tierStats) {
   return out.sort((a, b) => Math.abs(b.z) - Math.abs(a.z));
 }
 
+function detectBrokenLinks() {
+  const archIds = new Set(archetypes.map(a => a.id));
+  const powerIds = new Set(powers.map(p => p.id));
+  const cardIds = new Set(cards.map(c => c.id));
+  const broken = [];
+  for (const card of cards) {
+    for (const aid of (card.archetypes || [])) {
+      if (!archIds.has(aid)) broken.push({ card, type: 'archetype', refId: aid });
+    }
+    if (card.power?.id && !powerIds.has(card.power.id)) {
+      broken.push({ card, type: 'power', refId: card.power.id });
+    }
+    for (const mid of (card.cost?.materials || [])) {
+      if (!cardIds.has(mid)) broken.push({ card, type: 'material', refId: mid });
+    }
+  }
+  return broken;
+}
+
 function renderStats() {
   const el = document.getElementById('stats-content');
   const ts = computeTierStats();
@@ -1550,6 +1572,24 @@ function renderStats() {
       }).join('')}
     `;
 
+  const brokenLinks = detectBrokenLinks();
+  const TYPE_LABEL = { archetype: 'Archétype', power: 'Pouvoir', material: 'Matériel' };
+  const TYPE_COLOR = { archetype: '#a78bfa', power: '#fb923c', material: '#34d399' };
+  const brokenRows = brokenLinks.length === 0
+    ? `<div class="no-anomalies">✅ Aucun lien manquant</div>`
+    : brokenLinks.map(b => {
+        const col = TYPE_COLOR[b.type] || 'var(--accent)';
+        return `
+          <div class="broken-link-row" onclick="jumpToCard('${b.card.id}')">
+            <div style="flex:1;min-width:0;overflow:hidden">
+              <span style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">${esc(b.card.name)}</span>
+              <span style="font-size:10px;color:var(--muted);font-family:monospace">${b.card.id}</span>
+            </div>
+            <span class="badge" style="background:${col}22;color:${col};font-size:11px;flex-shrink:0">${TYPE_LABEL[b.type]}</span>
+            <span style="font-family:monospace;font-size:11px;color:var(--red);flex-shrink:0">${esc(b.refId)}</span>
+          </div>`;
+      }).join('');
+
   el.innerHTML = `
     ${overviewTable}
     <div class="stat-panel">
@@ -1558,6 +1598,12 @@ function renderStats() {
       ${thresholdControl}
       <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
         ${anomalyRows}
+      </div>
+    </div>
+    <div class="stat-panel" style="margin-top:20px">
+      <h3>Liens manquants <span style="font-size:11px;font-weight:400;color:var(--muted)">(${brokenLinks.length} référence${brokenLinks.length !== 1 ? 's' : ''} vers des IDs introuvables)</span></h3>
+      <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
+        ${brokenRows}
       </div>
     </div>
   `;
