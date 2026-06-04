@@ -1493,6 +1493,12 @@ const STAT_LABELS = { atk: 'ATK', hp: 'HP', movement_speed: 'Déplacement', atta
 const STAT_KEYS = ['atk', 'hp', 'movement_speed', 'attack_speed', 'initiative', 'range'];
 const TIER_COLORS = { 1: '#78c8a8', 2: '#6ab4e8', 3: '#c878e0', 4: '#f0a040', 5: '#f05050' };
 
+const COMPOSITE_STATS = [
+  { key: 'offensive', label: 'Score Offensif', formula: 'ATK × Vit. Attaque', color: '#f05050', note: 'DPS estimé', compute: s => (s.atk != null && s.attack_speed != null) ? s.atk * s.attack_speed : null },
+  { key: 'defensive', label: 'Ratio Défensif',  formula: 'ATK / HP',            color: '#6ab4e8', note: 'Élevé = glass canon · Faible = tank', compute: s => (s.atk != null && s.hp != null && s.hp > 0) ? s.atk / s.hp : null },
+  { key: 'mobility',  label: 'Score Mobilité',  formula: 'Déplacement / Portée', color: '#78c8a8', note: 'Mobilité relative à la portée', compute: s => (s.movement_speed != null && s.range != null && s.range > 0) ? s.movement_speed / s.range : null }
+];
+
 let statsFilterTier = 0;
 let statsThreshold = 1.5;
 
@@ -1536,6 +1542,39 @@ function detectOutliers(tierStats) {
   return out.sort((a, b) => Math.abs(b.z) - Math.abs(a.z));
 }
 
+function computeCompositeTierStats() {
+  const result = {};
+  [1,2,3,4,5].forEach(tier => {
+    const tc = cards.filter(c => Math.round(c.tier) === tier && c.stats);
+    result[tier] = { count: tc.length };
+    COMPOSITE_STATS.forEach(cs => {
+      const vals = tc.map(c => cs.compute(c.stats)).filter(v => v != null && !isNaN(v) && isFinite(v));
+      const m = mean(vals), s = stdDev(vals);
+      result[tier][cs.key] = { avg: m, std: s, min: vals.length ? Math.min(...vals) : 0, max: vals.length ? Math.max(...vals) : 0, count: vals.length };
+    });
+  });
+  return result;
+}
+
+function detectCompositeOutliers(compTierStats) {
+  const out = [];
+  cards.forEach(card => {
+    if (!card.stats) return;
+    const tier = Math.round(card.tier);
+    const ts = compTierStats[tier];
+    if (!ts) return;
+    COMPOSITE_STATS.forEach(cs => {
+      const v = cs.compute(card.stats);
+      if (v == null || isNaN(v) || !isFinite(v)) return;
+      const { avg: m, std: s, min, max } = ts[cs.key];
+      if (s < 0.01) return;
+      const z = (v - m) / s;
+      if (Math.abs(z) >= statsThreshold) out.push({ card, cs, value: v, avg: m, std: s, min, max, z });
+    });
+  });
+  return out.sort((a, b) => Math.abs(b.z) - Math.abs(a.z));
+}
+
 function detectBrokenLinks() {
   const archIds = new Set(archetypes.map(a => a.id));
   const powerIds = new Set(powers.map(p => p.id));
@@ -1561,6 +1600,11 @@ function renderStats() {
   const ts = computeTierStats();
   const outliers = detectOutliers(ts);
   const filteredOutliers = statsFilterTier ? outliers.filter(o => Math.round(o.card.tier) === statsFilterTier) : outliers;
+
+  const cts = computeCompositeTierStats();
+  const compOutliers = detectCompositeOutliers(cts);
+  const filteredCompOutliers = statsFilterTier ? compOutliers.filter(o => Math.round(o.card.tier) === statsFilterTier) : compOutliers;
+  const fmtC = v => v >= 10 ? v.toFixed(1) : v >= 1 ? v.toFixed(2) : v.toFixed(3);
 
   const tierRow = (key) => [1,2,3,4,5].map(tier => {
     const s = ts[tier].stats[key];
@@ -1675,6 +1719,84 @@ function renderStats() {
       }).join('')}
     `;
 
+  const compTierRow = (cs) => [1,2,3,4,5].map(tier => {
+    const s = cts[tier][cs.key];
+    if (!s || s.count === 0) return '<td style="color:var(--muted)">—</td>';
+    const col = cs.color;
+    const safeLeft = s.max > s.min ? Math.max(0, (s.avg - s.std - s.min) / (s.max - s.min) * 100).toFixed(1) : 0;
+    const safeWidth = s.max > s.min ? Math.min(100, s.std * 2 / (s.max - s.min) * 100).toFixed(1) : 100;
+    const avgPct = s.max > s.min ? ((s.avg - s.min) / (s.max - s.min) * 100).toFixed(1) : 50;
+    return `<td>
+      <div class="stat-val" style="color:${col}">${fmtC(s.avg)}</div>
+      <div class="stat-range">${fmtC(s.min)}–${fmtC(s.max)} <span style="color:var(--muted)">±${fmtC(s.std)}</span></div>
+      <div class="mini-bar-wrap" style="margin-top:3px">
+        <div class="mini-bar-track">
+          <div class="mini-bar-fill" style="left:0;width:100%;background:${col};opacity:.18"></div>
+          <div class="mini-bar-fill" style="left:${safeLeft}%;width:${safeWidth}%;background:${col};opacity:.5;max-width:100%"></div>
+          <div class="mini-bar-fill" style="left:${avgPct}%;width:2px;background:${col};opacity:1"></div>
+        </div>
+      </div>
+    </td>`;
+  }).join('');
+
+  const compAnomalyRows = filteredCompOutliers.length === 0
+    ? `<div class="no-anomalies">✅ Aucune anomalie composite détectée avec ce seuil</div>`
+    : `
+      <div class="anomaly-header">
+        <div>Carte</div><div>Tier</div><div>Stat composite</div><div>Valeur vs Moy.</div><div>Position</div><div>Écart</div>
+      </div>
+      ${filteredCompOutliers.map(o => {
+        const tier = Math.round(o.card.tier);
+        const col = TIER_COLORS[tier];
+        const csCol = o.cs.color;
+        const range = o.max - o.min;
+        const pos = range > 0 ? ((o.value - o.min) / range * 100).toFixed(1) : 50;
+        const avgPos = range > 0 ? ((o.avg - o.min) / range * 100).toFixed(1) : 50;
+        const isHigh = o.z > 0;
+        const severity = Math.abs(o.z);
+        const zClass = severity >= 2.5 ? 'z-high' : 'z-mild';
+        return `
+          <div class="anomaly-row" style="grid-template-columns:1fr 60px 150px 110px 1fr 70px" onclick="jumpToCard('${o.card.id}')">
+            <div class="anomaly-col-card">
+              <div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(o.card.name)}</div>
+              <div style="font-size:10px;color:var(--muted);font-family:monospace">${o.card.id}</div>
+              <div class="mobile-info" style="margin-top:7px">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+                  <span class="badge" style="background:${col}22;color:${col};font-size:11px;font-weight:700;padding:2px 8px">T${tier}</span>
+                </div>
+                <div style="margin-bottom:2px">
+                  <span style="font-size:11px;color:${csCol};font-weight:700">${o.cs.label}</span>
+                  <span style="font-size:10px;color:var(--muted)"> (${o.cs.formula})</span>
+                </div>
+                <div>
+                  <span class="${isHigh ? 'direction-high' : 'direction-low'}" style="font-size:14px;font-weight:800">${isHigh ? '▲' : '▼'} ${fmtC(o.value)}</span>
+                  <span style="color:var(--muted);font-size:12px"> vs ${fmtC(o.avg)}</span>
+                </div>
+              </div>
+            </div>
+            <div class="anomaly-col-tier"><span class="badge" style="background:${col}22;color:${col};font-size:10px">T${tier}</span></div>
+            <div class="anomaly-col-stat">
+              <div style="font-weight:600;color:${csCol}">${o.cs.label}</div>
+              <div style="font-size:10px;color:var(--muted)">${o.cs.formula}</div>
+            </div>
+            <div class="anomaly-col-val">
+              <span class="${isHigh ? 'direction-high' : 'direction-low'}" style="font-weight:700">${isHigh ? '▲' : '▼'} ${fmtC(o.value)}</span>
+              <span style="color:var(--muted)"> / ${fmtC(o.avg)}</span>
+            </div>
+            <div class="anomaly-col-pos">
+              <div class="mini-bar-track" style="min-width:80px">
+                <div class="mini-bar-fill" style="left:0;width:100%;background:${csCol};opacity:.1"></div>
+                <div class="mini-bar-fill" style="left:${avgPos}%;width:2px;background:var(--muted);opacity:.6"></div>
+                <div class="mini-bar-fill" style="left:${pos}%;width:3px;background:${isHigh ? 'var(--red)' : '#6ab4e8'};opacity:1"></div>
+              </div>
+              <div style="font-size:9px;color:var(--muted);margin-top:2px">${fmtC(o.min)} – ${fmtC(o.max)}</div>
+            </div>
+            <div><span class="z-chip ${zClass}">${severity.toFixed(1)}σ</span></div>
+          </div>
+        `;
+      }).join('')}
+    `;
+
   const brokenLinks = detectBrokenLinks();
   const TYPE_LABEL = { archetype: 'Archétype', power: 'Pouvoir', material: 'Matériel' };
   const TYPE_COLOR = { archetype: '#a78bfa', power: '#fb923c', material: '#34d399' };
@@ -1701,6 +1823,41 @@ function renderStats() {
       ${thresholdControl}
       <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
         ${anomalyRows}
+      </div>
+    </div>
+    <div class="stat-panel" style="margin-top:20px">
+      <h3>Anomalies avancées <span style="font-size:11px;font-weight:400;color:var(--muted)">(stats composites — ${filteredCompOutliers.length} anomalie${filteredCompOutliers.length !== 1 ? 's' : ''} · seuil ${statsThreshold}σ)</span></h3>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+        ${COMPOSITE_STATS.map(cs => `
+          <div style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;border:1px solid ${cs.color}44;background:${cs.color}11;font-size:11px">
+            <span style="width:8px;height:8px;border-radius:50%;background:${cs.color};flex-shrink:0"></span>
+            <span style="font-weight:700;color:${cs.color}">${cs.label}</span>
+            <span style="color:var(--muted)">${cs.formula}</span>
+            <span style="color:var(--muted);font-size:10px;opacity:.8">· ${cs.note}</span>
+          </div>
+        `).join('')}
+      </div>
+      <div style="overflow-x:auto;margin-bottom:16px">
+        <table class="tier-overview-table">
+          <thead>
+            <tr>
+              <th>Stat composite</th>
+              ${[1,2,3,4,5].map(t => `<th style="color:${TIER_COLORS[t]}">Tier ${t} <span style="font-weight:400;color:var(--muted)">(${cts[t].count})</span></th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            ${COMPOSITE_STATS.map(cs => `<tr>
+              <td style="white-space:nowrap">
+                <div style="font-weight:600;color:${cs.color}">${cs.label}</div>
+                <div style="font-size:10px;color:var(--muted);font-weight:400">${cs.formula}</div>
+              </td>
+              ${compTierRow(cs)}
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
+        ${compAnomalyRows}
       </div>
     </div>
     <div class="stat-panel" style="margin-top:20px">
