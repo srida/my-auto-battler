@@ -95,6 +95,10 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', syste
 .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--accent); }
 .field textarea { resize: vertical; min-height: 60px; }
 .field select option { background: var(--surface2); }
+.field input[type=range] { width: 100%; accent-color: var(--accent); cursor: pointer; padding: 0; border: none; background: none; height: 20px; }
+.field input[type=range]:focus { border-color: transparent; }
+.slider-val { font-size: 12px; font-weight: 700; color: var(--accent); background: rgba(108,99,255,.15); border-radius: 4px; padding: 1px 6px; margin-left: 5px; font-family: monospace; }
+.slider-marks { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin-top: 1px; }
 
 .section-title { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; font-weight: 700; margin: 20px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
 
@@ -597,10 +601,10 @@ function renderCardDetail() {
     <div class="form-grid">
       <div class="field"><label>ID</label><input id="f-id" value="${c.id}" placeholder="CORE_001"></div>
       <div class="field"><label>Nom</label><input id="f-name" value="${esc(c.name)}" placeholder="Nom de la carte"></div>
-      <div class="field"><label>Tier</label>
-        <select id="f-tier">
-          ${[1,2,3,4,5].map(t => `<option value="${t}" ${Math.round(c.tier)==t?'selected':''}>${t}</option>`).join('')}
-        </select>
+      <div class="field">
+        <label>Tier <span class="slider-val" id="f-tier-val">${Math.round(c.tier)}</span></label>
+        <input type="range" id="f-tier" min="1" max="5" step="1" value="${Math.round(c.tier)}" oninput="document.getElementById('f-tier-val').textContent=this.value">
+        <div class="slider-marks"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span></div>
       </div>
       <div class="field"><label>Type d'invocation</label>
         <select id="f-summon" onchange="onSummonTypeChange(this.value)">
@@ -613,10 +617,26 @@ function renderCardDetail() {
     <div class="stats-grid">
       <div class="field"><label>ATK</label><input type="number" id="f-atk" value="${c.stats.atk}" step="0.5"></div>
       <div class="field"><label>HP</label><input type="number" id="f-hp" value="${c.stats.hp}" step="0.5"></div>
-      <div class="field"><label>Portée</label><input type="number" id="f-range" value="${c.stats.range}" step="0.5"></div>
-      <div class="field"><label>Vitesse déplacement</label><input type="number" id="f-move" value="${c.stats.movement_speed}" step="0.5"></div>
-      <div class="field"><label>Vitesse attaque</label><input type="number" id="f-aspeed" value="${c.stats.attack_speed}" step="0.5"></div>
-      <div class="field"><label>Initiative</label><input type="number" id="f-init" value="${c.stats.initiative}" step="0.5"></div>
+      <div class="field">
+        <label>Portée <span class="slider-val" id="f-range-val">${Math.min(4,Math.max(1,Math.round(c.stats.range)))}</span></label>
+        <input type="range" id="f-range" min="1" max="4" step="1" value="${Math.min(4,Math.max(1,Math.round(c.stats.range)))}" oninput="document.getElementById('f-range-val').textContent=this.value">
+        <div class="slider-marks"><span>1</span><span>2</span><span>3</span><span>4</span></div>
+      </div>
+      <div class="field">
+        <label>Vit. déplacement <span class="slider-val" id="f-move-val">${Math.min(20,Math.max(5,Math.round(c.stats.movement_speed/5)*5))}</span></label>
+        <input type="range" id="f-move" min="5" max="20" step="5" value="${Math.min(20,Math.max(5,Math.round(c.stats.movement_speed/5)*5))}" oninput="document.getElementById('f-move-val').textContent=this.value">
+        <div class="slider-marks"><span>5</span><span>10</span><span>15</span><span>20</span></div>
+      </div>
+      <div class="field">
+        <label>Vit. attaque <span class="slider-val" id="f-aspeed-val">${Math.min(20,Math.max(1,Math.round(c.stats.attack_speed)))}</span></label>
+        <input type="range" id="f-aspeed" min="1" max="20" step="1" value="${Math.min(20,Math.max(1,Math.round(c.stats.attack_speed)))}" oninput="document.getElementById('f-aspeed-val').textContent=this.value">
+        <div class="slider-marks"><span>1</span><span>20</span></div>
+      </div>
+      <div class="field">
+        <label>Initiative <span class="slider-val" id="f-init-val">${Math.min(10,Math.max(1,Math.round(c.stats.initiative)))}</span></label>
+        <input type="range" id="f-init" min="1" max="10" step="1" value="${Math.min(10,Math.max(1,Math.round(c.stats.initiative)))}" oninput="document.getElementById('f-init-val').textContent=this.value">
+        <div class="slider-marks"><span>1</span><span>10</span></div>
+      </div>
     </div>
 
     <div class="section-title">Pouvoir</div>
@@ -633,7 +653,11 @@ function renderCardDetail() {
 
     <div class="section-title">Coût d'invocation</div>
     <div class="form-grid">
-      <div class="field"><label>Sacrifices requis</label><input type="number" id="f-sac" value="${c.cost.sacrifice}" min="0" step="1"></div>
+      <div class="field">
+        <label>Sacrifices requis <span class="slider-val" id="f-sac-val">${Math.min(3,Math.max(0,c.cost.sacrifice||0))}</span></label>
+        <input type="range" id="f-sac" min="0" max="3" step="1" value="${Math.min(3,Math.max(0,c.cost.sacrifice||0))}" oninput="document.getElementById('f-sac-val').textContent=this.value">
+        <div class="slider-marks"><span>0</span><span>1</span><span>2</span><span>3</span></div>
+      </div>
     </div>
     <div id="materials-section">
       <div id="material-section-label" style="font-size:11px;color:var(--muted);margin-top:10px;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;font-weight:600">${c.summon_type === 'rituel' ? 'Matériaux de rituel' : 'Matériaux de fusion/rituel'}</div>
