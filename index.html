@@ -1494,7 +1494,7 @@ const STAT_KEYS = ['atk', 'hp', 'movement_speed', 'attack_speed', 'initiative', 
 const TIER_COLORS = { 1: '#78c8a8', 2: '#6ab4e8', 3: '#c878e0', 4: '#f0a040', 5: '#f05050' };
 
 const COMPOSITE_STATS = [
-  { key: 'offensive', label: 'Score Offensif', formula: 'ATK × (Vit. Attaque % 100)', color: '#f05050', note: 'Dégâts sur 100 ticks', compute: s => (s.atk != null && s.attack_speed != null) ? s.atk * (s.attack_speed % 100) : null },
+  { key: 'offensive', label: 'Score Offensif', formula: 'ATK × (100 / Vit. Attaque)', color: '#f05050', note: 'Dégâts sur 100 ticks', compute: s => (s.atk != null && s.attack_speed != null) ? s.atk * (100 / s.attack_speed) : null },
   { key: 'defensive', label: 'Ratio Défensif',  formula: 'ATK / HP',            color: '#6ab4e8', note: 'Élevé = glass canon · Faible = tank', compute: s => (s.atk != null && s.hp != null && s.hp > 0) ? s.atk / s.hp : null },
   { key: 'mobility',  label: 'Score Mobilité',  formula: 'Déplacement / Portée', color: '#78c8a8', note: 'Mobilité relative à la portée', compute: s => (s.movement_speed != null && s.range != null && s.range > 0) ? s.movement_speed / s.range : null }
 ];
