@@ -1471,7 +1471,8 @@ function detectBrokenLinks() {
       broken.push({ card, type: 'power', refId: card.power.id });
     }
     for (const mid of (card.cost?.materials || [])) {
-      if (!cardIds.has(mid)) broken.push({ card, type: 'material', refId: mid });
+      const valid = cardIds.has(mid) || (card.summon_type === 'rituel' && archIds.has(mid));
+      if (!valid) broken.push({ card, type: 'material', refId: mid });
     }
   }
   return broken;
