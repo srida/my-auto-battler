@@ -621,7 +621,7 @@ function renderCardDetail() {
           ${hasPower ? `<span class="badge badge-power">⚡ ${getPowerName(c.power.id)}</span>` : ''}
           <span class="badge ${hasIllus ? 'badge-illus' : 'badge-no-illus'}">${hasIllus ? '🖼 Illus.' : 'Pas d\'illus.'}</span>
         </div>
-        <div style="font-family:monospace;font-size:11px;color:var(--muted)">${c.id}</div>
+        <div id="detail-card-id-display" style="font-family:monospace;font-size:11px;color:var(--muted)">${c.id}</div>
       </div>
     </div>
 
@@ -726,6 +726,7 @@ function renderCardDetail() {
         ? `<button class="btn btn-success" onclick="createCard()">Créer la carte</button>
            <button class="btn btn-secondary" onclick="cancelNew()">Annuler</button>`
         : `<button class="btn btn-primary" onclick="saveCard()">Enregistrer</button>
+           <button class="btn btn-secondary" onclick="duplicateCard()" title="Crée une copie avec un nouvel ID">⧉ Dupliquer</button>
            <button class="btn btn-danger" onclick="deleteCard()">Supprimer</button>`}
     </div>
   `;
@@ -1008,6 +1009,65 @@ function cancelNew() {
   filterCards();
   document.getElementById('card-detail').innerHTML = '<div class="empty"><span>Sélectionne une carte</span></div>';
   showList();
+}
+
+function duplicateCard() {
+  if (!selectedCard) return;
+  syncCardFromForm();
+
+  // Extrait le préfixe et trouve le prochain numéro disponible pour ce préfixe
+  const idMatch = selectedCard.id.match(/^(.+?)_(\d+)$/);
+  const prefix = idMatch ? idMatch[1] : 'CORE';
+  const padLen  = idMatch ? idMatch[2].length : 3;
+  const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const prefixRe = new RegExp(`^${escaped}_(\\d+)$`);
+
+  const nextNum = cards.reduce((max, c) => {
+    const m = c.id.match(prefixRe);
+    return m ? Math.max(max, parseInt(m[1])) : max;
+  }, 0) + 1;
+
+  const newId = `${prefix}_${String(nextNum).padStart(Math.max(padLen, 3), '0')}`;
+
+  // Deep-clone de la carte courante, nouvel ID, pas d'illustration
+  selectedCard = JSON.parse(JSON.stringify(selectedCard));
+  selectedCard.id = newId;
+  selectedCard._has_illustration = false;
+
+  isNewCard = true;
+  renderCardList();
+  renderCardDetail();
+
+  // renderCardDetail() écrase selectedCard.id via le set-picker auto.
+  // On réinjecte notre ID calculé dans le set picker, puis on sync.
+  const setEl  = document.getElementById('f-set');
+  const numEl  = document.getElementById('f-num');
+  const newWrp = document.getElementById('f-set-new-wrap');
+  if (setEl) {
+    const inList = [...setEl.options].some(o => o.value === prefix);
+    if (inList) {
+      setEl.value = prefix;
+      if (newWrp) newWrp.style.display = 'none';
+    } else {
+      // Le set n'existe pas encore : utilise le champ "nouveau set"
+      setEl.value = '__new__';
+      if (newWrp) newWrp.style.display = '';
+      const newSetEl = document.getElementById('f-set-new');
+      if (newSetEl) newSetEl.value = prefix;
+    }
+    if (numEl) numEl.value = nextNum;
+    syncIdFromSet();   // met à jour f-id
+    // syncIdFromSet ne touche pas selectedCard.id, on le force ici
+    const finalId = document.getElementById('f-id')?.value;
+    if (finalId && selectedCard) {
+      selectedCard.id = finalId;
+      const badge = document.getElementById('detail-card-id-display');
+      if (badge) badge.textContent = finalId;
+    }
+  }
+
+  showDetail();
+  toast(`Carte dupliquée — modifie puis clique "Créer la carte"`);
 }
 
 // Illustration
