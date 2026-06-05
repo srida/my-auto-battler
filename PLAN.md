@@ -240,7 +240,7 @@ resetCombatStats(), recomputeStats(archetypeManager)
 - Bouton "Jouer" → GameScreen avec le deck actif
 
 **`DeckBuilder.js`**
-- 5 colonnes (tiers 1–5), 8 slots par tier
+- 5 colonnes (tiers 1–5), 8 slots par tier (4 à 8 cartes selectionnable)
 - Grille de cartes disponibles avec filtre (search + summon_type)
 - Clic pour assigner une carte au tier sélectionné
 - Validation bloquante : tous les tiers doivent être complets avant sauvegarde
@@ -343,7 +343,7 @@ Ces règles sont héritées du projet Godot et s'appliquent à la version web :
 - [x] Phase 1 — Foundation
 - [x] Phase 2 — Data layer
 - [x] Phase 3 — Logique headless
-- [ ] Phase 4 — Navigation
-- [ ] Phase 5 — Board UI
+- [x] Phase 4 — Navigation
+- [x] Phase 5 — Board UI
 - [ ] Phase 6 — Combat visuel
 - [ ] Phase 7 — Polish mobile

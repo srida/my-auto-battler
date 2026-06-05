@@ -7,7 +7,7 @@ import { Unit } from './Unit.js';
  * board: Board
  */
 
-export function canSummon(card, pos, board, hand) {
+export function canSummon(card, pos, board, hand, graveyard = []) {
   if (!board.isInBounds(pos)) return fail('Position hors limites');
   if (!board.isPlayerCell(pos)) return fail('Placement uniquement sur le côté joueur (rangées 0–3)');
   // La transformation place la carte sur la case de la cible (déjà occupée)
@@ -20,17 +20,20 @@ export function canSummon(card, pos, board, hand) {
     case 'sacrifice': {
       const needed = card.cost?.sacrifice ?? 0;
       if (needed === 0) return ok();
-      const allies = board.getLivingUnitsOnSide('player');
-      if (allies.length < needed) return fail(`Requiert ${needed} unité(s) alliée(s) sur le terrain`);
+      const total = board.getLivingUnitsOnSide('player').length + graveyard.length;
+      if (total < needed) return fail(`Requiert ${needed} unité(s) sur le terrain ou au cimetière`);
       return ok();
     }
 
     case 'fusion': {
       const materials = card.cost?.materials ?? [];
       if (materials.length === 0) return ok();
+      const playerUnits = board.getUnitsOnSide('player');
       for (const matId of materials) {
-        if (!hand.find(c => c.id === matId))
-          return fail(`Matériau manquant en main : ${matId}`);
+        const onBoard = playerUnits.find(u => u.card_id === matId && u.isAlive());
+        const inGrave = graveyard.find(u => u.card_id === matId);
+        if (!onBoard && !inGrave)
+          return fail(`Matériau manquant sur le terrain ou au cimetière : ${matId}`);
       }
       return ok();
     }
@@ -38,13 +41,16 @@ export function canSummon(card, pos, board, hand) {
     case 'rituel': {
       const materials = card.cost?.materials ?? [];
       const sacrifice = card.cost?.sacrifice ?? 0;
+      const playerUnits = board.getUnitsOnSide('player');
       for (const matId of materials) {
-        if (!hand.find(c => c.id === matId))
-          return fail(`Matériau rituel manquant en main : ${matId}`);
+        const onBoard = playerUnits.find(u => u.card_id === matId && u.isAlive());
+        const inGrave = graveyard.find(u => u.card_id === matId);
+        if (!onBoard && !inGrave)
+          return fail(`Matériau rituel manquant sur le terrain ou au cimetière : ${matId}`);
       }
       if (sacrifice > 0) {
-        const allies = board.getLivingUnitsOnSide('player');
-        if (allies.length < sacrifice) return fail(`Requiert ${sacrifice} tribut(s) sur le terrain`);
+        const total = board.getLivingUnitsOnSide('player').length + graveyard.length;
+        if (total < sacrifice) return fail(`Requiert ${sacrifice} tribut(s) sur le terrain ou au cimetière`);
       }
       return ok();
     }
@@ -52,8 +58,9 @@ export function canSummon(card, pos, board, hand) {
     case 'transformation': {
       const targetId = card.cost?.materials?.[0];
       if (!targetId) return fail('Pas de cible de transformation définie');
-      const targetUnit = board.getUnitsOnSide('player').find(u => u.card_id === targetId && u.isAlive());
-      if (!targetUnit) return fail(`Requiert ${targetId} vivant sur le terrain`);
+      const onBoard = board.getUnitsOnSide('player').find(u => u.card_id === targetId && u.isAlive());
+      const inGrave = graveyard.find(u => u.card_id === targetId);
+      if (!onBoard && !inGrave) return fail(`Requiert ${targetId} sur le terrain ou au cimetière`);
       return ok();
     }
 
@@ -92,18 +99,34 @@ export function summon(card, pos, board, hand, sacrificeTargets = null) {
 
     case 'fusion': {
       _removeFromHand(hand, card.id);
-      for (const matId of (card.cost?.materials ?? [])) _removeFromHand(hand, matId);
+      if (sacrificeTargets && sacrificeTargets.length > 0) {
+        for (const u of sacrificeTargets) board.removeUnit(u);
+      } else {
+        // AI fallback: auto-select matching units
+        const fusionUnits = board.getUnitsOnSide('player');
+        for (const matId of (card.cost?.materials ?? [])) {
+          const mat = fusionUnits.find(u => u.card_id === matId && u.isAlive());
+          if (mat) board.removeUnit(mat);
+        }
+      }
       break;
     }
 
     case 'rituel': {
       _removeFromHand(hand, card.id);
-      for (const matId of (card.cost?.materials ?? [])) _removeFromHand(hand, matId);
-      const sacrifice = card.cost?.sacrifice ?? 0;
-      const toRemove = sacrificeTargets
-        ? sacrificeTargets.slice(0, sacrifice)
-        : board.getLivingUnitsOnSide('player').slice(0, sacrifice);
-      for (const u of toRemove) board.removeUnit(u);
+      if (sacrificeTargets && sacrificeTargets.length > 0) {
+        for (const u of sacrificeTargets) board.removeUnit(u);
+      } else {
+        // AI fallback: auto-select matching units + tributes
+        const rituelUnits = board.getUnitsOnSide('player');
+        for (const matId of (card.cost?.materials ?? [])) {
+          const mat = rituelUnits.find(u => u.card_id === matId && u.isAlive());
+          if (mat) board.removeUnit(mat);
+        }
+        const sacrifice = card.cost?.sacrifice ?? 0;
+        const toRemove = board.getLivingUnitsOnSide('player').slice(0, sacrifice);
+        for (const u of toRemove) board.removeUnit(u);
+      }
       break;
     }
 

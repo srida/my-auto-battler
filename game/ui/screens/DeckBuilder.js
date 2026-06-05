@@ -1,37 +1,240 @@
 import { navigate } from '../../main.js';
+import * as CardDatabase from '../../data/CardDatabase.js';
+import * as DeckRepository from '../../data/DeckRepository.js';
+
+const TIER_COLOR = ['', 'tier1', 'tier2', 'tier3', 'tier4', 'tier5'];
+const SUMMON_TYPES = ['normal', 'sacrifice', 'fusion', 'rituel', 'transformation'];
+const TIER_MIN = 4; // minimum cards per tier to validate the deck
 
 export async function mount(container, params = {}) {
-  const isEdit = !!params.deckName;
+  await CardDatabase.init();
+
+  // Edit mode: params.deckName has priority, then consumePendingEdit()
+  const pendingName = DeckRepository.consumePendingEdit();
+  const editName    = params.deckName || pendingName || null;
+
+  // State
+  let deckName    = editName || '';
+  let activeTier  = 1;
+  let searchQuery = '';
+  let summonFilter = '';
+
+  // deckData[t] = Card[] (objects, duplicates allowed)
+  const deckData = { 1: [], 2: [], 3: [], 4: [], 5: [] };
+
+  // Load existing deck when editing
+  if (editName) {
+    const saved = DeckRepository.loadDeck(editName);
+    if (saved) {
+      for (let t = 1; t <= 5; t++) {
+        deckData[t] = (saved[String(t)] ?? []).map(id => CardDatabase.getCard(id)).filter(Boolean);
+      }
+    }
+  }
+
+  // Max slots per tier = min(8, pool_size) — minimum to validate is TIER_MIN (4)
+  const tierMax = {};
+  for (let t = 1; t <= 5; t++) {
+    tierMax[t] = Math.min(8, CardDatabase.getCardsByTier(t).length);
+  }
+
+  // ── Render shell ──────────────────────────────────────────────────────────
 
   container.innerHTML = `
     <div class="topbar">
       <button class="topbar-back" id="btn-back">←</button>
-      <span class="topbar-title">${isEdit ? 'Modifier le deck' : 'Nouveau deck'}</span>
+      <input class="deck-name-input" id="deck-name" type="text"
+        placeholder="Nom du deck…" value="${esc(deckName)}" maxlength="32">
       <button class="btn btn-primary" id="btn-save" disabled>Sauvegarder</button>
     </div>
     <div class="deck-builder-layout">
       <div class="deck-slots-panel">
-        <p class="panel-label">Deck (5 tiers × 8 cartes)</p>
-        <div class="deck-tiers" id="deck-tiers">
-          ${[1, 2, 3, 4, 5].map(t => `
-            <div class="tier-row">
-              <span class="tier-label badge badge-tier${t}">Tier ${t}</span>
-              <div class="tier-slots">
-                ${Array(8).fill('<div class="deck-slot empty"></div>').join('')}
-              </div>
-            </div>
-          `).join('')}
-        </div>
+        <p class="tier-hint">4 à 8 cartes par tier</p>
+        <div class="deck-tiers" id="deck-tiers"></div>
       </div>
       <div class="card-browser-panel">
-        <p class="panel-label">Cartes disponibles</p>
-        <input class="search-input" id="search" type="search" placeholder="Rechercher…">
-        <div class="card-grid" id="card-grid">
-          <p class="loading-text">Chargement des cartes…</p>
+        <div class="summon-filter-bar" id="summon-filters">
+          <button class="filter-pill active" data-type="">Tous</button>
+          ${SUMMON_TYPES.map(t => `<button class="filter-pill" data-type="${t}">${cap(t)}</button>`).join('')}
         </div>
+        <input class="search-input" id="search" type="search" placeholder="Rechercher…">
+        <div class="card-grid" id="card-grid"></div>
       </div>
     </div>
   `;
 
+  const btnSave    = container.querySelector('#btn-save');
+  const nameInput  = container.querySelector('#deck-name');
+  const searchInput = container.querySelector('#search');
+  const tiersEl   = container.querySelector('#deck-tiers');
+  const cardGrid   = container.querySelector('#card-grid');
+
+  // ── Tier panel ────────────────────────────────────────────────────────────
+
+  function renderTiers() {
+    tiersEl.innerHTML = [1, 2, 3, 4, 5].map(t => {
+      const req    = tierMax[t];
+      const filled = deckData[t];
+      const isAct  = t === activeTier;
+      const isOk   = filled.length >= TIER_MIN;
+      return `
+        <div class="tier-row${isAct ? ' active' : ''}" data-tier="${t}">
+          <span class="tier-label badge badge-${TIER_COLOR[t]}${isOk ? ' tier-ok' : ''}">
+            T${t}&nbsp;<span class="tier-count">${filled.length}/${req}</span>
+          </span>
+          <div class="tier-slots">
+            ${filled.map((card, idx) => `
+              <div class="deck-slot filled" title="${esc(card.name)}">
+                <img src="/illustrations/${card.id}" alt="${esc(card.name)}" loading="lazy">
+                <button class="slot-remove" data-tier="${t}" data-idx="${idx}">×</button>
+              </div>`).join('')}
+            ${Array(Math.max(0, req - filled.length)).fill('<div class="deck-slot empty"></div>').join('')}
+          </div>
+        </div>`;
+    }).join('');
+
+    // Tier row click → set active tier
+    tiersEl.querySelectorAll('.tier-row').forEach(row => {
+      row.addEventListener('click', e => {
+        if (e.target.closest('.slot-remove')) return;
+        activeTier = parseInt(row.dataset.tier, 10);
+        renderTiers();
+        renderBrowser();
+      });
+    });
+
+    // Remove card from slot
+    tiersEl.querySelectorAll('.slot-remove').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const t   = parseInt(btn.dataset.tier, 10);
+        const idx = parseInt(btn.dataset.idx, 10);
+        deckData[t].splice(idx, 1);
+        renderTiers();
+        renderBrowser();
+        updateSave();
+      });
+    });
+  }
+
+  // ── Card browser ──────────────────────────────────────────────────────────
+
+  function renderBrowser() {
+    const pool  = CardDatabase.getCardsByTier(activeTier);
+    const query = searchQuery.toLowerCase().trim();
+
+    const filtered = pool.filter(c => {
+      if (summonFilter && c.summon_type !== summonFilter) return false;
+      if (query && !c.name.toLowerCase().includes(query)) return false;
+      return true;
+    });
+
+    // Count copies already picked for this tier
+    const countInTier = {};
+    for (const c of deckData[activeTier]) {
+      countInTier[c.id] = (countInTier[c.id] || 0) + 1;
+    }
+
+    const req    = tierMax[activeTier];
+    const isFull = deckData[activeTier].length >= req;
+
+    if (filtered.length === 0) {
+      cardGrid.innerHTML = `<p class="loading-text">Aucune carte trouvée.</p>`;
+      return;
+    }
+
+    cardGrid.innerHTML = filtered.map(c => {
+      const count = countInTier[c.id] || 0;
+      return `
+        <button class="card-item${isFull ? ' full' : ''}" data-id="${c.id}"
+          title="${esc(c.name)} — ATK ${c.atk} / HP ${c.hp}">
+          <img src="/illustrations/${c.id}" alt="${esc(c.name)}" loading="lazy">
+          <span class="card-item-name">${esc(c.name)}</span>
+          ${count > 0 ? `<span class="card-count">×${count}</span>` : ''}
+        </button>`;
+    }).join('');
+
+    // Add card to active tier on click
+    cardGrid.querySelectorAll('.card-item:not(.full)').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const card = CardDatabase.getCard(btn.dataset.id);
+        if (!card) return;
+        if (deckData[activeTier].length >= tierMax[activeTier]) return;
+        deckData[activeTier].push(card);
+        renderTiers();
+        renderBrowser();
+        updateSave();
+      });
+    });
+  }
+
+  // ── Save validation ───────────────────────────────────────────────────────
+
+  function updateSave() {
+    const hasName  = nameInput.value.trim().length > 0;
+    const allValid = [1, 2, 3, 4, 5].every(t =>
+      deckData[t].length >= TIER_MIN && deckData[t].length <= tierMax[t]);
+    btnSave.disabled = !(hasName && allValid);
+  }
+
+  // ── Events ────────────────────────────────────────────────────────────────
+
   container.querySelector('#btn-back').addEventListener('click', () => navigate('deck_selector'));
+
+  nameInput.addEventListener('input', () => {
+    deckName = nameInput.value;
+    updateSave();
+  });
+
+  searchInput.addEventListener('input', () => {
+    searchQuery = searchInput.value;
+    renderBrowser();
+  });
+
+  container.querySelector('#summon-filters').addEventListener('click', e => {
+    const pill = e.target.closest('.filter-pill');
+    if (!pill) return;
+    summonFilter = pill.dataset.type;
+    container.querySelectorAll('.filter-pill').forEach(p =>
+      p.classList.toggle('active', p.dataset.type === summonFilter));
+    renderBrowser();
+  });
+
+  btnSave.addEventListener('click', () => {
+    const name = nameInput.value.trim();
+    if (!name) return;
+
+    // Warn if overwriting a different deck
+    if (DeckRepository.deckExists(name) && name !== editName) {
+      if (!confirm(`Un deck "${name}" existe déjà. Écraser ?`)) return;
+    }
+
+    // Rename: delete old key
+    if (editName && editName !== name && DeckRepository.deckExists(editName)) {
+      DeckRepository.deleteDeck(editName);
+    }
+
+    const toSave = {};
+    for (let t = 1; t <= 5; t++) {
+      toSave[String(t)] = deckData[t].map(c => c.id);
+    }
+    DeckRepository.saveDeck(name, toSave);
+    navigate('deck_selector');
+  });
+
+  // ── Initial render ────────────────────────────────────────────────────────
+
+  renderTiers();
+  renderBrowser();
+  updateSave();
+}
+
+function esc(str) {
+  return String(str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function cap(str) {
+  return str.charAt(0).toUpperCase() + str.slice(1);
 }
