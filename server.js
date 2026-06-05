@@ -60,8 +60,12 @@ app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 // Admin (protected)
 app.get('/admin', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
 
-// Illustrations public (game needs card art)
-app.use('/illustrations', express.static(ILLUS_DIR));
+// Illustrations public (game needs card art) — adds .png extension automatically
+app.get('/illustrations/:id', (req, res) => {
+  const filePath = path.join(ILLUS_DIR, `${req.params.id}.png`);
+  if (fs.existsSync(filePath)) res.sendFile(filePath);
+  else res.status(404).end();
+});
 
 // --- Helpers ---
 function readJson(file) {
