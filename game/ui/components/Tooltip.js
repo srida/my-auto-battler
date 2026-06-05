@@ -54,16 +54,19 @@ function _repositionFromRect(r) {
 }
 
 // Builds tooltip HTML from a card data object
-export function cardHtml(card, powerDb = null, archetypeDb = null) {
+export function cardHtml(card, powerDb = null, archetypeDb = null, cardDb = null) {
   const summonLabels = { normal: 'Normal', sacrifice: 'Sacrifice', fusion: 'Fusion', rituel: 'Rituel', transformation: 'Transformation' };
-  const archetypeNames = (card.archetypes || []).map(id => {
-    const a = archetypeDb?.getArchetype(id);
-    return a ? a.name : id;
-  });
+  const archetypeNames = (card.archetypes || []).map(id => archetypeDb?.getArchetype(id)?.name ?? id);
   const power = card.power?.id && powerDb ? powerDb.getPower(card.power.id) : null;
   const costLines = [];
   if (card.cost?.sacrifice) costLines.push(`Sacrifice : ${card.cost.sacrifice}`);
-  if (card.cost?.materials?.length) costLines.push(`Matériaux : ${card.cost.materials.join(', ')}`);
+  if (card.cost?.materials?.length) {
+    const matNames = card.cost.materials.map(id => {
+      if (id.startsWith('ARCH_')) return archetypeDb?.getArchetype(id)?.name ?? id;
+      return cardDb?.getCard(id)?.name ?? id;
+    });
+    costLines.push(`Matériaux : ${matNames.join(', ')}`);
+  }
 
   return `
     <div class="tip-header">
@@ -85,7 +88,11 @@ export function cardHtml(card, powerDb = null, archetypeDb = null) {
 }
 
 // Builds tooltip HTML from a live Unit object
-export function unitHtml(unit) {
+export function unitHtml(unit, powerDb = null, archetypeDb = null) {
+  const archetypeNames = (unit.archetypes || []).map(id => archetypeDb?.getArchetype(id)?.name ?? id);
+  const powerName = unit.power_id
+    ? (powerDb?.getPower(unit.power_id)?.name ?? unit.power_id)
+    : null;
   return `
     <div class="tip-header">
       <span class="tip-name">${esc(unit.name)}</span>
@@ -97,9 +104,49 @@ export function unitHtml(unit) {
       <span>⚡ ${unit.attack_speed}</span>
       <span>↔ ${unit.range}</span>
     </div>
+    ${archetypeNames.length ? `<div class="tip-archetypes">${archetypeNames.map(n => `<span class="badge">${esc(n)}</span>`).join('')}</div>` : ''}
     ${unit.shield > 0 ? `<div class="tip-power">🛡 Shield : ${unit.shield}</div>` : ''}
-    ${unit.power_id ? `<div class="tip-power">✨ ${esc(unit.power_id)} ${unit.power_gauge}/${unit.power_speed}</div>` : ''}
+    ${powerName ? `<div class="tip-power">✨ ${esc(powerName)} ${unit.power_gauge}/${unit.power_speed}</div>` : ''}
   `;
+}
+
+// Builds tooltip HTML for an archetype synergy chip
+export function archetypeHtml(arch, count, activeThreshold, cardDb = null) {
+  const medalColors = { bronze: '#cd7f32', silver: '#b0b8c8', gold: '#f0c040', platinum: '#e5e4e2' };
+  const medalNames  = { bronze: 'Bronze',  silver: 'Argent',  gold: 'Or',      platinum: 'Platine' };
+  const rows = (arch.thresholds ?? []).map(t => {
+    const isActive = activeThreshold && t.count <= activeThreshold.count;
+    const color = isActive ? (medalColors[t.medal] ?? 'var(--accent)') : 'var(--muted)';
+    const desc  = _describeEffects(t.effects, cardDb);
+    return `<div style="color:${color};font-size:11px;padding:2px 0">${isActive ? '●' : '○'} ${t.count} (${esc(medalNames[t.medal] ?? t.medal)}) — ${esc(desc)}</div>`;
+  }).join('');
+  return `
+    <div class="tip-header">
+      <span style="font-size:18px;line-height:1">${arch.icon ?? ''}</span>
+      <span class="tip-name">${esc(arch.name)}</span>
+      <span style="font-size:11px;color:var(--muted)">${count} présent${count > 1 ? 's' : ''}</span>
+    </div>
+    <div style="margin-top:6px">${rows || '<span style="color:var(--muted);font-size:11px">Aucun palier</span>'}</div>
+  `;
+}
+
+function _describeEffects(effects, cardDb) {
+  return (effects ?? []).map(e => {
+    switch (e.type) {
+      case 'stat_bonus':       return `+${e.value} ${_statLabel(e.stat)} à toutes les unités`;
+      case 'stat_modifier':    return `+${e.value} ${_statLabel(e.stat)} par neutralisation`;
+      case 'draw_bonus':       return `+${e.value} carte${e.value > 1 ? 's' : ''} par tour`;
+      case 'guaranteed_draw':  return `Pioche : ${cardDb?.getCard(e.card_id)?.name ?? e.card_id}`;
+      case 'revive':           return `Réanime une unité (${Math.round((e.hp_ratio ?? .5) * 100)}% PV)`;
+      case 'shield':           return `Bouclier +${e.value} PV`;
+      case 'board_slot_bonus': return `+${e.value} emplacement${e.value > 1 ? 's' : ''}`;
+      default:                 return e.type;
+    }
+  }).join(', ');
+}
+
+function _statLabel(stat) {
+  return ({ atk: 'ATK', hp: 'HP', attack_speed: "vitesse d'attaque", movement_speed: 'vitesse' })[stat] ?? stat;
 }
 
 function esc(s) {

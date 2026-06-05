@@ -128,10 +128,12 @@ Appliqué symétriquement. Tension risk/reward : garder des cartes en main boost
 | Transformation | Remplace une unité spécifique déjà en jeu |
 
 ### Combat
-- Ciblage : ennemi le plus proche (déterministe, pas de hasard)
+- Ciblage : ligne de front ennemie en priorité → plus proche (Manhattan) → moins de HP en cas d'égalité
 - Pathfinding : BFS, unités ne peuvent pas se chevaucher
 - Pouvoir : jauge se charge avec le temps, remplace l'attaque normale à pleine charge
-- Unités neutralisées : retirées définitivement
+- Dégâts de fin de combat = somme ATK des survivants ennemis × multiplicateur
+- HP joueurs : 1000
+- Unités neutralisées : restent disponibles comme matériaux pendant toute la préparation suivante, retirées au lancement du combat suivant si non consommées
 - Survivants : retournent à `initial_position` après le combat
 
 ### Pouvoirs implémentés
@@ -321,6 +323,48 @@ resetCombatStats(), recomputeStats(archetypeManager)
 
 ---
 
+### Phase 8 — Features manquantes du GDD *(3–4 jours)*
+
+**Objectif :** implémenter les features décrites dans le GDD v1.6 absentes de la version web actuelle.
+
+**Pot de Cupidité**
+- [ ] Bouton visible en phase de préparation
+- [ ] Piocher 2 cartes supplémentaires
+- [ ] Coût HP par tour : 50 / 75 / 100 / 150 / 200
+- [ ] Griser le bouton après utilisation (une fois par tour)
+- [ ] Réactiver au début de chaque tour
+
+**Monster Reborn**
+- [ ] Bouton visible en phase de préparation (grisé au tour 1)
+- [ ] Flux : activation → surligner les unités neutralisées en violet → sélection → cases disponibles en vert → placement
+- [ ] Unité ressuscitée à 50% HP max
+- [ ] Coût HP identique au Pot de Cupidité
+- [ ] Griser après utilisation
+
+**Pool de pioche par tour**
+- [ ] Vérifier que `EnemyAI.selectHand()` et `GameState` respectent le pool par tour (Tier 1 au tour 1, etc.)
+- [ ] Pool joueur : `CardDatabase.getCardsByTier(tier)` filtré selon le tour actuel
+
+**Indicateurs visuels en combat**
+- [ ] `UnitCard.js` : jauges circulaires attack (rouge) / movement (vert) / power (jaune)
+- [ ] Masquer les jauges si cooldown au maximum
+- [ ] HP bar masquée si HP = 100%
+- [ ] Shield bar masquée si shield = 0
+- [ ] Icônes de statut : empoisonnée / paralysée / pouvoir bloqué
+
+**Panneau d'archetypes**
+- [ ] Afficher le panneau en haut du board dès qu'une unité est présente
+- [ ] Tooltip sur chaque icône d'archetype (palier actif, effet)
+
+**Sélection visuelle des matériaux**
+- [ ] Unités utilisables comme matériaux d'invocation : surlignées en violet
+- [ ] Cases disponibles pour placement : affichées en vert
+- [ ] Clic hors zone de sélection → annuler l'action en cours
+
+**Critère de sortie :** toutes les features du GDD v1.6 sont jouables.
+
+---
+
 ## Règles d'implémentation
 
 Ces règles sont héritées du projet Godot et s'appliquent à la version web :
@@ -347,3 +391,4 @@ Ces règles sont héritées du projet Godot et s'appliquent à la version web :
 - [x] Phase 5 — Board UI
 - [x] Phase 6 — Combat visuel
 - [ ] Phase 7 — Polish mobile
+- [ ] Phase 8 — Features manquantes du GDD (Pot de Cupidité, Monster Reborn, indicateurs visuels)

@@ -23,6 +23,7 @@ function _inner(unit) {
     : 0;
   return `
     <img src="/illustrations/${unit.card_id}" alt="${esc(unit.name)}" loading="lazy">
+    <span class="unit-team-diamond">◆</span>
     <div class="unit-tier-badge badge-tier${unit.tier}">${unit.tier}</div>
     <div class="unit-hp-bar"><div class="unit-hp-fill" style="width:${hpPct}%;background:${hpColor}"></div></div>
     ${unit.power_id ? `<div class="unit-pwr-bar"><div class="unit-pwr-fill" style="width:${pwrPct}%"></div></div>` : ''}

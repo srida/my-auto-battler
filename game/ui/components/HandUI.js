@@ -1,11 +1,12 @@
 import * as Tooltip from './Tooltip.js';
 
 export class HandUI {
-  constructor(container, { onSelect, powerDb = null, archetypeDb = null, isPlayable = null } = {}) {
+  constructor(container, { onSelect, powerDb = null, archetypeDb = null, cardDb = null, isPlayable = null } = {}) {
     this._container = container;
     this._onSelect = onSelect;
     this._powerDb = powerDb;
     this._archetypeDb = archetypeDb;
+    this._cardDb = cardDb;
     this._isPlayable = isPlayable;
     this._hand = [];
     this._selectedIdx = null;
@@ -71,7 +72,7 @@ export class HandUI {
         Tooltip.hide();
         const rect = el.getBoundingClientRect();
         longPressTimer = setTimeout(() => {
-          Tooltip.showAtRect(Tooltip.cardHtml(card, this._powerDb, this._archetypeDb), rect);
+          Tooltip.showAtRect(Tooltip.cardHtml(card, this._powerDb, this._archetypeDb, this._cardDb), rect);
         }, 500);
         if (this._selectedIdx === idx) {
           this._selectedIdx = null;

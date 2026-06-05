@@ -97,7 +97,7 @@ export class GameState {
   }
 
   isGameOver() {
-    return this.phase === Phase.GAME_OVER || this.player_hp <= 0 || this.enemy_hp <= 0;
+    return this.phase === Phase.GAME_OVER || this.player_hp <= 0 || this.enemy_hp <= 0 || this.round >= MAX_ROUNDS;
   }
 
   getWinner() {

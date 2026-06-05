@@ -4,13 +4,15 @@ import * as Tooltip from './Tooltip.js';
 const COLS = 5;
 
 export class BoardGrid {
-  constructor(container, { rows = 4, onCellTap, onUnitTap, onUnitDrag, showEnemySide = false } = {}) {
+  constructor(container, { rows = 4, onCellTap, onUnitTap, onUnitDrag, showEnemySide = false, powerDb = null, archetypeDb = null } = {}) {
     this._container = container;
     this._displayRows = rows;
     this._onCellTap = onCellTap;
     this._onUnitTap = onUnitTap;
     this._onUnitDrag = onUnitDrag;
     this._showEnemySide = showEnemySide;
+    this._powerDb = powerDb;
+    this._archetypeDb = archetypeDb;
     this._board = null;
     this._highlighted = new Set();         // "col,row" — valid placement cells (blue)
     this._materialCandidates = new Set();  // "col,row" — selectable material units (yellow border)
@@ -156,7 +158,7 @@ export class BoardGrid {
       startX = e.clientX;
       startY = e.clientY;
       dragging = false;
-      longPressTimer = setTimeout(() => Tooltip.show(Tooltip.unitHtml(unit), el), 500);
+      longPressTimer = setTimeout(() => Tooltip.show(Tooltip.unitHtml(unit, this._powerDb, this._archetypeDb), el), 500);
 
       // Track move/up on document so events are received regardless of where the pointer goes
       const onMove = (ev) => {

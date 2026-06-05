@@ -39,18 +39,18 @@ export function canSummon(card, pos, board, hand, graveyard = []) {
     }
 
     case 'rituel': {
-      const materials = card.cost?.materials ?? [];
+      const required = card.cost?.materials ?? [];
       const sacrifice = card.cost?.sacrifice ?? 0;
-      const playerUnits = board.getUnitsOnSide('player');
-      for (const matId of materials) {
-        const onBoard = playerUnits.find(u => u.card_id === matId && u.isAlive());
-        const inGrave = graveyard.find(u => u.card_id === matId);
-        if (!onBoard && !inGrave)
-          return fail(`Matériau rituel manquant sur le terrain ou au cimetière : ${matId}`);
-      }
-      if (sacrifice > 0) {
-        const total = board.getLivingUnitsOnSide('player').length + graveyard.length;
-        if (total < sacrifice) return fail(`Requiert ${sacrifice} tribut(s) sur le terrain ou au cimetière`);
+      const allUnits = [...board.getUnitsOnSide('player'), ...graveyard];
+      // sacrifice = total units to consume; materials = constraints among those units
+      if (allUnits.length < sacrifice)
+        return fail(`Requiert ${sacrifice} unité(s) sur le terrain ou au cimetière`);
+      // Check each material requirement can be matched by some available unit
+      const pool = [...allUnits];
+      for (const matId of required) {
+        const idx = pool.findIndex(u => _matchesMaterial(u, matId));
+        if (idx === -1) return fail(`Matériau rituel manquant : ${matId}`);
+        pool.splice(idx, 1);
       }
       return ok();
     }
@@ -117,15 +117,16 @@ export function summon(card, pos, board, hand, sacrificeTargets = null) {
       if (sacrificeTargets && sacrificeTargets.length > 0) {
         for (const u of sacrificeTargets) board.removeUnit(u);
       } else {
-        // AI fallback: auto-select matching units + tributes
-        const rituelUnits = board.getUnitsOnSide('player');
-        for (const matId of (card.cost?.materials ?? [])) {
-          const mat = rituelUnits.find(u => u.card_id === matId && u.isAlive());
-          if (mat) board.removeUnit(mat);
-        }
+        // AI fallback: pick required materials first, fill remaining slots with any unit
         const sacrifice = card.cost?.sacrifice ?? 0;
-        const toRemove = board.getLivingUnitsOnSide('player').slice(0, sacrifice);
-        for (const u of toRemove) board.removeUnit(u);
+        const pool = board.getLivingUnitsOnSide('player').slice();
+        const toConsume = [];
+        for (const matId of (card.cost?.materials ?? [])) {
+          const idx = pool.findIndex(u => _matchesMaterial(u, matId));
+          if (idx !== -1) { toConsume.push(pool[idx]); pool.splice(idx, 1); }
+        }
+        for (const u of pool.slice(0, sacrifice - toConsume.length)) toConsume.push(u);
+        for (const u of toConsume) board.removeUnit(u);
       }
       break;
     }
@@ -154,3 +155,9 @@ function _removeFromHand(hand, cardId) {
 
 function ok()         { return { ok: true,  reason: '' }; }
 function fail(reason) { return { ok: false, reason }; }
+
+// A material requirement matches either a specific card ID or an archetype ID.
+function _matchesMaterial(unit, matId) {
+  if (matId.startsWith('ARCH_')) return unit.archetypes?.includes(matId) ?? false;
+  return unit.card_id === matId;
+}

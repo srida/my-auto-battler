@@ -194,8 +194,12 @@ export class ArchetypeManager {
       const arch = this._archetypeMap[archId];
       if (!arch) continue;
       const count = this._countArchetype(archId, units);
-      const threshold = this._activeThreshold(archId, units);
-      synergies.push({ arch, count, active: !!threshold });
+      const result = this._activeThreshold(archId, units);
+      const activeThreshold = result?.threshold ?? null;
+      const nextThreshold = arch.thresholds
+        .filter(t => t.count > count)
+        .sort((a, b) => a.count - b.count)[0] ?? null;
+      synergies.push({ arch, count, activeThreshold, nextThreshold });
     }
     return synergies.sort((a, b) => b.count - a.count);
   }

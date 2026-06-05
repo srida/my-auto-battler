@@ -1,4 +1,4 @@
-import { chebyshevDistance, findClosestEnemy, stepToward } from './PathFinder.js';
+import { chebyshevDistance, findClosestEnemy, findAttackTarget, isInAttackRange, stepToward } from './PathFinder.js';
 
 // Power constants
 const POWER_SUPER_ATTACK_MULT = 3;
@@ -94,8 +94,7 @@ export class CombatManager {
       const enemies = this._enemies(u).filter(e => e.isAlive());
       if (enemies.length === 0) continue;
       const { unit: target } = findClosestEnemy(u, enemies);
-      const dist = chebyshevDistance(u.position, target.position);
-      if (dist <= u.range) continue; // already in range, no need to move
+      if (isInAttackRange(u, target)) continue; // already in attack range, no need to move
 
       const next = stepToward(this.board, u.position, target.position);
       if (next && !this.board.isOccupied(next)) {
@@ -114,8 +113,8 @@ export class CombatManager {
 
       const enemies = this._enemies(u).filter(e => e.isAlive());
       if (enemies.length === 0) continue;
-      const { unit: target, distance } = findClosestEnemy(u, enemies);
-      if (distance > u.range) continue; // out of range this tick
+      const { unit: target } = findAttackTarget(u, enemies);
+      if (!isInAttackRange(u, target)) continue; // out of attack range this tick
 
       if (u.isPowerReady()) {
         u.power_gauge = 0;

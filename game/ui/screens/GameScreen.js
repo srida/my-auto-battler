@@ -54,6 +54,7 @@ export async function mount(container, params = {}) {
       </div>
     </div>
     <div class="game-layout">
+      <div class="archetype-panel" id="archetype-panel"></div>
       <div class="board-area" id="board-area"></div>
       <div class="graveyard-area" id="graveyard-area" style="display:none">
         <span class="graveyard-label">Cimetière</span>
@@ -86,6 +87,8 @@ export async function mount(container, params = {}) {
     onCellTap: handleCellTap,
     onUnitTap: handleUnitTap,
     onUnitDrag: handleUnitDrag,
+    powerDb: PowerDatabase,
+    archetypeDb: ArchetypeDatabase,
   });
   grid.setBoard(board);
 
@@ -98,6 +101,7 @@ export async function mount(container, params = {}) {
     onSelect: handleCardSelect,
     powerDb: PowerDatabase,
     archetypeDb: ArchetypeDatabase,
+    cardDb: CardDatabase,
     isPlayable: (card) => _isPlayable(card, board, graveyard, gameState.player_board_slots),
   });
 
@@ -242,6 +246,7 @@ export async function mount(container, params = {}) {
     grid.clearMaterialHighlight();
     grid.setSelectedPos(null);
     grid.refresh();
+    _refreshArchetypePanel();
   }
 
   function _tryMove(to) {
@@ -257,6 +262,7 @@ export async function mount(container, params = {}) {
     grid.setSelectedPos(null);
     grid.clearHighlight();
     grid.refresh();
+    _refreshArchetypePanel();
   }
 
   function _validCells(card) {
@@ -340,12 +346,11 @@ export async function mount(container, params = {}) {
     if (card.summon_type === 'rituel') {
       const required = card.cost?.materials ?? [];
       const sacrifice = card.cost?.sacrifice ?? 0;
-      const coveredIds = alreadySelected.map(u => u.card_id);
-      const specificStillNeeded = required.filter(id => !coveredIds.includes(id));
-      if (specificStillNeeded.length > 0)
-        return avail.filter(u => specificStillNeeded.includes(u.card_id));
-      const tributes = alreadySelected.filter(u => !required.includes(u.card_id)).length;
-      if (tributes >= sacrifice) return [];
+      if (alreadySelected.length >= sacrifice) return [];
+      const uncovered = _getUncoveredRequirements(required, alreadySelected);
+      const remainingSlots = sacrifice - alreadySelected.length;
+      if (uncovered.length > 0 && uncovered.length === remainingSlots)
+        return avail.filter(u => uncovered.some(matId => _matchesMaterial(u, matId)));
       return avail;
     }
 
@@ -360,7 +365,35 @@ export async function mount(container, params = {}) {
     return [];
   }
 
+  function _refreshArchetypePanel() {
+    const panel = container.querySelector('#archetype-panel');
+    if (!panel) return;
+    const units = board.getLivingUnitsOnSide('player');
+    if (units.length === 0) { panel.innerHTML = ''; return; }
+    const archetypeList = ArchetypeDatabase.getAllArchetypes();
+    const mgr = new ArchetypeManager(archetypeList, units, []);
+    const synergies = mgr.getActiveSynergies(units);
+    panel.innerHTML = synergies.map(({ arch, count, activeThreshold, nextThreshold }) => {
+      const isActive = !!activeThreshold;
+      const label = nextThreshold ? `${count}/${nextThreshold.count}` : `${count}`;
+      return `<button class="archetype-chip${isActive ? ' arch-active' : ''}" data-arch-id="${arch.id}" title="${arch.name}">`
+        + `<span class="archetype-chip-icon">${arch.icon ?? '?'}</span>`
+        + `<span class="archetype-chip-count">${label}</span>`
+        + `</button>`;
+    }).join('');
+    panel.querySelectorAll('.archetype-chip').forEach(chip => {
+      chip.addEventListener('pointerdown', e => {
+        e.stopPropagation();
+        const archId = chip.dataset.archId;
+        const s = synergies.find(x => x.arch.id === archId);
+        if (!s) return;
+        Tooltip.toggle(Tooltip.archetypeHtml(s.arch, s.count, s.activeThreshold, CardDatabase), chip);
+      });
+    });
+  }
+
   function _refreshGraveyard() {
+    _refreshArchetypePanel();
     const graveyardArea   = container.querySelector('#graveyard-area');
     const graveyardUnitsEl = container.querySelector('#graveyard-units');
 
@@ -382,7 +415,7 @@ export async function mount(container, params = {}) {
       el.addEventListener('pointerdown', e => {
         e.stopPropagation();
         startX = e.clientX; startY = e.clientY; moved = false;
-        longPressTimer = setTimeout(() => Tooltip.show(Tooltip.unitHtml(unit), el), 500);
+        longPressTimer = setTimeout(() => Tooltip.show(Tooltip.unitHtml(unit, PowerDatabase, ArchetypeDatabase), el), 500);
         const onMove = ev => {
           if (Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) > 10) moved = true;
         };
@@ -682,10 +715,8 @@ function _materialsComplete(card, mats) {
   if (card.summon_type === 'rituel') {
     const required = card.cost?.materials ?? [];
     const sacrifice = card.cost?.sacrifice ?? 0;
-    const coveredIds = mats.map(u => u.card_id);
-    const specificCovered = required.every(id => coveredIds.includes(id));
-    const tributes = mats.filter(u => !required.includes(u.card_id)).length;
-    return specificCovered && tributes >= sacrifice;
+    // Need exactly `sacrifice` units total, all material constraints satisfied among them
+    return mats.length >= sacrifice && _getUncoveredRequirements(required, mats).length === 0;
   }
   if (card.summon_type === 'transformation') {
     const targetId = card.cost?.materials?.[0];
@@ -718,15 +749,16 @@ function _materialCandidateCells(card, alreadySelected, board) {
   if (card.summon_type === 'rituel') {
     const required = card.cost?.materials ?? [];
     const sacrifice = card.cost?.sacrifice ?? 0;
-    const coveredIds = alreadySelected.map(u => u.card_id);
-    const specificStillNeeded = required.filter(id => !coveredIds.includes(id));
-    if (specificStillNeeded.length > 0) {
-      // Specific materials first
-      return units.filter(u => specificStillNeeded.includes(u.card_id) && !selected.has(u)).map(u => ({ ...u.position }));
+    if (alreadySelected.length >= sacrifice) return [];
+    const uncovered = _getUncoveredRequirements(required, alreadySelected);
+    const remainingSlots = sacrifice - alreadySelected.length;
+    // If remaining slots == uncovered requirements, only allow units matching those requirements
+    if (uncovered.length > 0 && uncovered.length === remainingSlots) {
+      return units
+        .filter(u => !selected.has(u) && uncovered.some(matId => _matchesMaterial(u, matId)))
+        .map(u => ({ ...u.position }));
     }
-    // Then additional tributes
-    const tributes = alreadySelected.filter(u => !required.includes(u.card_id)).length;
-    if (tributes >= sacrifice) return [];
+    // Free slots available — any unit is acceptable
     return units.filter(u => !selected.has(u)).map(u => ({ ...u.position }));
   }
 
@@ -756,15 +788,11 @@ function _isPlayable(card, board, graveyard = [], maxSlots = Infinity) {
     );
   }
   if (card.summon_type === 'rituel') {
-    const materials = card.cost?.materials ?? [];
+    const required = card.cost?.materials ?? [];
     const sacrifice = card.cost?.sacrifice ?? 0;
-    const units = board.getUnitsOnSide('player');
-    if (!materials.every(id =>
-      units.find(u => u.card_id === id && u.isAlive()) ||
-      graveyard.find(u => u.card_id === id)
-    )) return false;
-    if (sacrifice > 0 && board.getLivingUnitsOnSide('player').length + graveyard.length < sacrifice) return false;
-    return true;
+    const allUnits = [...board.getUnitsOnSide('player'), ...graveyard];
+    if (allUnits.length < sacrifice) return false;
+    return _getUncoveredRequirements(required, allUnits).length === 0;
   }
   if (card.summon_type === 'transformation') {
     const targetId = card.cost?.materials?.[0];
@@ -774,6 +802,23 @@ function _isPlayable(card, board, graveyard = [], maxSlots = Infinity) {
   }
   return _hasEmptyPlayerCell(board);
 }
+
+// Material helpers — a requirement can be a card ID (CORE_*) or an archetype ID (ARCH_*).
+function _matchesMaterial(unit, matId) {
+  if (matId.startsWith('ARCH_')) return unit.archetypes?.includes(matId) ?? false;
+  return unit.card_id === matId;
+}
+
+// Returns the subset of `required` not yet covered by `selectedUnits` (greedy, order-stable).
+function _getUncoveredRequirements(required, selectedUnits) {
+  const pool = [...selectedUnits];
+  return required.filter(matId => {
+    const idx = pool.findIndex(u => _matchesMaterial(u, matId));
+    if (idx !== -1) { pool.splice(idx, 1); return false; }
+    return true;
+  });
+}
+
 
 function _hasEmptyPlayerCell(board) {
   for (let r = 0; r <= 3; r++)
