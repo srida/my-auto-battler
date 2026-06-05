@@ -67,6 +67,8 @@ export async function mount(container, params = {}) {
           <button class="btn btn-secondary speed-btn active" data-speed="1">×1</button>
           <button class="btn btn-secondary speed-btn" data-speed="2">×2</button>
           <button class="btn btn-secondary speed-btn" data-speed="4">×4</button>
+          <div style="flex:1"></div>
+          <button class="btn btn-secondary speed-btn" id="btn-pause">⏸</button>
         </div>
       </div>
     </div>
@@ -96,7 +98,7 @@ export async function mount(container, params = {}) {
     onSelect: handleCardSelect,
     powerDb: PowerDatabase,
     archetypeDb: ArchetypeDatabase,
-    isPlayable: (card) => _isPlayable(card, board, graveyard),
+    isPlayable: (card) => _isPlayable(card, board, graveyard, gameState.player_board_slots),
   });
 
   // ── Interaction ──────────────────────────────────────────────────────────
@@ -188,6 +190,16 @@ export async function mount(container, params = {}) {
   function _tryPlace(card, pos) {
     const result = InvocationManager.canSummon(card, pos, board, hand, graveyard);
     if (!result.ok) { _flashError(result.reason); return; }
+
+    // Board slot limit (transformation is always 1-for-1, skip)
+    if (card.summon_type !== 'transformation') {
+      const materialsOnBoard = selectedMaterials.filter(u => !graveyard.includes(u)).length;
+      const afterPlace = board.getLivingUnitsOnSide('player').length - materialsOnBoard + 1;
+      if (afterPlace > gameState.player_board_slots) {
+        _flashError(`Maximum ${gameState.player_board_slots} unités sur le terrain`);
+        return;
+      }
+    }
     InvocationManager.summon(card, pos, board, hand, selectedMaterials.length > 0 ? selectedMaterials : null);
     // Remove consumed graveyard units
     for (const u of selectedMaterials) {
@@ -250,6 +262,13 @@ export async function mount(container, params = {}) {
   function _validCells(card) {
     // Don't show placement cells until required materials are selected
     if (_needsMaterials(card, board, graveyard) && !_materialsComplete(card, selectedMaterials)) return [];
+
+    // Board slot limit (transformation is always 1-for-1, skip)
+    if (card.summon_type !== 'transformation') {
+      const materialsOnBoard = selectedMaterials.filter(u => !graveyard.includes(u)).length;
+      const afterPlace = board.getLivingUnitsOnSide('player').length - materialsOnBoard + 1;
+      if (afterPlace > gameState.player_board_slots) return [];
+    }
 
     // For transformation:
     if (card.summon_type === 'transformation') {
@@ -473,11 +492,26 @@ export async function mount(container, params = {}) {
       onFinished: () => _finishCombat(combat, playerUnits, enemyUnits, archetypeManager),
     });
 
-    speedControls.querySelectorAll('.speed-btn').forEach(btn => {
+    const btnPause = speedControls.querySelector('#btn-pause');
+    let isPaused = false;
+    btnPause.addEventListener('click', () => {
+      isPaused = !isPaused;
+      if (isPaused) {
+        animator.pause();
+        btnPause.textContent = '▶';
+        btnPause.classList.add('active');
+      } else {
+        animator.resume();
+        btnPause.textContent = '⏸';
+        btnPause.classList.remove('active');
+      }
+    });
+
+    speedControls.querySelectorAll('.speed-btn[data-speed]').forEach(btn => {
       btn.addEventListener('click', () => {
         currentSpeed = +btn.dataset.speed;
         animator.setSpeed(currentSpeed);
-        speedControls.querySelectorAll('.speed-btn')
+        speedControls.querySelectorAll('.speed-btn[data-speed]')
           .forEach(b => b.classList.toggle('active', b === btn));
       }, { once: false });
     });
@@ -532,7 +566,10 @@ export async function mount(container, params = {}) {
     // Restore preparation UI
     grid.exitCombatMode();
     handArea.style.display = '';
-    container.querySelector('#speed-controls').style.display = 'none';
+    const sc = container.querySelector('#speed-controls');
+    sc.style.display = 'none';
+    const bp = sc.querySelector('#btn-pause');
+    if (bp) { bp.textContent = '⏸'; bp.classList.remove('active'); }
     btnCombat.style.display = '';
 
     _showEndRound(winner);
@@ -699,7 +736,11 @@ function _materialCandidateCells(card, alreadySelected, board) {
 // Returns true if the card can potentially be played given the current board state.
 // Used to grey out unplayable cards in hand. Intentionally lenient: doesn't check
 // for empty cells when materials will be freed by the summon itself.
-function _isPlayable(card, board, graveyard = []) {
+function _isPlayable(card, board, graveyard = [], maxSlots = Infinity) {
+  if (card.summon_type === 'normal') {
+    if (board.getLivingUnitsOnSide('player').length >= maxSlots) return false;
+    return _hasEmptyPlayerCell(board);
+  }
   if (card.summon_type === 'sacrifice') {
     const needed = card.cost?.sacrifice ?? 0;
     if (needed === 0) return _hasEmptyPlayerCell(board);
@@ -731,7 +772,6 @@ function _isPlayable(card, board, graveyard = []) {
     return !!board.getUnitsOnSide('player').find(u => u.card_id === targetId && u.isAlive()) ||
            !!graveyard.find(u => u.card_id === targetId);
   }
-  // normal
   return _hasEmptyPlayerCell(board);
 }
 

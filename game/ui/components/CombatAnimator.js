@@ -10,42 +10,49 @@ export class CombatAnimator {
     this._onStep = onStep;
     this._speed = 1;
     this._rafId = null;
-    this._lastTick = 0;
     this._running = false;
+    this._paused = false;
   }
 
   setSpeed(s) { this._speed = s; }
 
+  pause() {
+    this._paused = true;
+  }
+
+  resume() {
+    if (!this._paused) return;
+    this._paused = false;
+    if (this._running) this._schedule();
+  }
+
   start() {
     this._running = true;
-    this._lastTick = performance.now();
+    this._paused = false;
     this._schedule();
   }
 
   stop() {
     this._running = false;
-    if (this._rafId) cancelAnimationFrame(this._rafId);
+    this._paused = false;
+    if (this._rafId) clearTimeout(this._rafId);
     this._rafId = null;
   }
 
   _schedule() {
-    this._rafId = requestAnimationFrame(ts => {
-      if (!this._running) return;
-      const interval = BASE_TICK_MS / this._speed;
-      if (ts - this._lastTick >= interval) {
-        this._lastTick = ts;
-        const events = this._cm.step();
-        this._onStep?.(events);
-        for (const evt of events) this._apply(evt);
-        if (this._cm.isOver) {
-          this._running = false;
-          // Delay so death animations finish before showing the overlay
-          setTimeout(() => this._onFinished?.(), 500);
-          return;
-        }
+    const interval = BASE_TICK_MS / this._speed;
+    this._rafId = setTimeout(() => {
+      if (!this._running || this._paused) return;
+      const events = this._cm.step();
+      this._onStep?.(events);
+      for (const evt of events) this._apply(evt);
+      if (this._cm.isOver) {
+        this._running = false;
+        setTimeout(() => this._onFinished?.(), 500);
+        return;
       }
       this._schedule();
-    });
+    }, interval);
   }
 
   _cellEl(pos) {
@@ -58,12 +65,11 @@ export class CombatAnimator {
 
   _apply(evt) {
     switch (evt.type) {
-      case 'move':   this._applyMove(evt); break;
+      case 'move':   this._applyMove(evt);   break;
       case 'attack': this._applyAttack(evt); break;
-      case 'dot':    this._applyDot(evt); break;
-      case 'power':  this._applyPower(evt); break;
-      case 'death':  this._applyDeath(evt); break;
-      // combat_end handled by _cm.isOver check in _schedule
+      case 'dot':    this._applyDot(evt);    break;
+      case 'power':  this._applyPower(evt);  break;
+      case 'death':  this._applyDeath(evt);  break;
     }
   }
 
@@ -78,27 +84,24 @@ export class CombatAnimator {
     const tr  = toCell.getBoundingClientRect();
     const dur = Math.max(60, Math.round((BASE_TICK_MS * 0.75) / this._speed));
 
-    // Clone floats from source to destination (avoids overflow:hidden clipping)
     const clone = unitEl.cloneNode(true);
     Object.assign(clone.style, {
-      position: 'fixed',
-      pointerEvents: 'none',
-      zIndex: '50',
-      width:  fr.width  + 'px',
-      height: fr.height + 'px',
-      left:   fr.left   + 'px',
-      top:    fr.top    + 'px',
-      margin: '0',
+      position:     'fixed',
+      pointerEvents:'none',
+      zIndex:       '50',
+      width:        fr.width  + 'px',
+      height:       fr.height + 'px',
+      left:         fr.left   + 'px',
+      top:          fr.top    + 'px',
+      margin:       '0',
       borderRadius: 'var(--radius-sm)',
-      transition: `left ${dur}ms ease, top ${dur}ms ease`,
+      transition:   `left ${dur}ms ease, top ${dur}ms ease`,
     });
     document.body.appendChild(clone);
 
-    // Move actual element immediately (invisible)
     unitEl.style.opacity = '0';
     toCell.appendChild(unitEl);
 
-    // Double rAF so transition fires
     requestAnimationFrame(() => requestAnimationFrame(() => {
       clone.style.left = tr.left + 'px';
       clone.style.top  = tr.top  + 'px';
@@ -106,17 +109,28 @@ export class CombatAnimator {
 
     clone.addEventListener('transitionend', () => {
       clone.remove();
-      unitEl.style.opacity = '';
+      // Don't restore opacity if death animation has already started
+      if (!unitEl.classList.contains('anim-death')) {
+        unitEl.style.opacity = '';
+      }
     }, { once: true });
   }
 
   _applyAttack({ attacker, target }) {
     const atkEl = this._unitEl(attacker.uid);
-    const tgtEl = this._unitEl(target.uid);
     if (atkEl) this._flashClass(atkEl, 'anim-shake');
-    if (tgtEl) {
-      this._flashClass(tgtEl, 'anim-hit');
-      updateUnitEl(tgtEl, target);
+
+    if (attacker.range > 1) {
+      // Ranged: projectile flies to target, then applies hit
+      this._launchProjectile(attacker.uid, target);
+    } else {
+      // Melee: instant hit
+      const tgtEl = this._unitEl(target.uid);
+      if (tgtEl) {
+        this._flashClass(tgtEl, 'anim-hit');
+        updateUnitEl(tgtEl, target);
+      }
+      if (target.position) this._flashTargetCell(target.position);
     }
   }
 
@@ -141,15 +155,70 @@ export class CombatAnimator {
         this._flashClass(el, cls);
         updateUnitEl(el, t);
       }
+      if (t.position) this._flashTargetCell(t.position);
     }
   }
 
   _applyDeath({ unit }) {
     const el = this._unitEl(unit.uid);
-    if (el) {
-      el.classList.add('anim-death');
-      el.addEventListener('animationend', () => el.remove(), { once: true });
+    if (!el) return;
+    // Clear any inline opacity left by a move animation
+    el.style.opacity = '';
+    el.classList.add('anim-death');
+    const cleanup = () => { if (el.parentNode) el.remove(); };
+    el.addEventListener('animationend', cleanup, { once: true });
+    // Fallback in case animationend doesn't fire (detached element, throttled tab)
+    setTimeout(cleanup, 600);
+  }
+
+  _flashTargetCell(pos) {
+    const cell = this._cellEl(pos);
+    if (cell) this._flashClass(cell, 'attack-target-cell');
+  }
+
+  _launchProjectile(attackerUid, target) {
+    const atkEl = this._unitEl(attackerUid);
+    const tgtEl = this._unitEl(target.uid);
+    if (!atkEl || !tgtEl) {
+      // Fallback: apply damage immediately
+      if (tgtEl) { updateUnitEl(tgtEl, target); this._flashClass(tgtEl, 'anim-hit'); }
+      return;
     }
+
+    const ar  = atkEl.getBoundingClientRect();
+    const tr  = tgtEl.getBoundingClientRect();
+    const dur = Math.max(40, Math.round((BASE_TICK_MS * 0.5) / this._speed));
+
+    const sx = ar.left + ar.width  / 2;
+    const sy = ar.top  + ar.height / 2;
+    const tx = tr.left + tr.width  / 2;
+    const ty = tr.top  + tr.height / 2;
+
+    const proj = document.createElement('div');
+    proj.className = 'combat-projectile';
+    Object.assign(proj.style, {
+      left:       sx + 'px',
+      top:        sy + 'px',
+      transition: `left ${dur}ms linear, top ${dur}ms linear`,
+    });
+    document.body.appendChild(proj);
+
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      proj.style.left = tx + 'px';
+      proj.style.top  = ty + 'px';
+    }));
+
+    setTimeout(() => {
+      proj.remove();
+      const el = this._unitEl(target.uid);
+      if (el) {
+        updateUnitEl(el, target);
+        if (!el.classList.contains('anim-death')) {
+          this._flashClass(el, 'anim-hit');
+          if (target.position) this._flashTargetCell(target.position);
+        }
+      }
+    }, dur);
   }
 
   _flashClass(el, cls) {

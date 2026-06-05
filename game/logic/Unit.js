@@ -77,7 +77,10 @@ export class Unit {
       dmg -= absorbed;
     }
     this.current_hp = Math.max(0, this.current_hp - dmg);
-    if (this.current_hp === 0) this.is_neutralized = true;
+    if (this.current_hp === 0) {
+      this.is_neutralized = true;
+      this.power_gauge = 0;
+    }
     return dmg; // actual damage dealt (after shield)
   }
 

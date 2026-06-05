@@ -227,6 +227,33 @@
 .unit-card.material-selected { outline: 3px solid var(--green); }
 .hand-card.dim { opacity: 0.35; }
 
+/* Player / enemy side stripe */
+.unit-card.unit-player::before,
+.unit-card.unit-enemy::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  pointer-events: none;
+  z-index: 1;
+}
+.unit-card.unit-player::before { background: var(--green); }
+.unit-card.unit-enemy::before  { background: var(--red); }
+
+/* Tier badge */
+.unit-tier-badge {
+  position: absolute;
+  bottom: calc(var(--hp-bar-height) + var(--power-bar-height) + 2px);
+  left: 2px;
+  font-size: 8px;
+  font-weight: 800;
+  padding: 0 3px;
+  border-radius: 2px;
+  line-height: 1.5;
+  pointer-events: none;
+  opacity: 0.9;
+}
+
 /* Unit card (inside board cell) */
 .unit-card {
   width: 100%;
@@ -422,6 +449,19 @@
 .graveyard-units .unit-card.neutralized.material-candidate { opacity: 1; filter: none; }
 .graveyard-units .unit-card.neutralized.material-selected { opacity: 1; filter: none; }
 
+/* ── Combat projectile ──────────────────────────────────────────── */
+.combat-projectile {
+  position: fixed;
+  pointer-events: none;
+  z-index: 60;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--yellow);
+  box-shadow: 0 0 8px 3px rgba(240, 192, 64, 0.85);
+  transform: translate(-50%, -50%);
+}
+
 /* ── Combat animations ──────────────────────────────────────────── */
 @keyframes anim-shake {
   0%,100% { transform: translateX(0); }
@@ -467,6 +507,12 @@
 .anim-paralysis  { animation: anim-paralysis  0.35s ease; }
 .anim-power-cast { animation: anim-power-cast 0.3s  ease; }
 .anim-death      { animation: anim-death      0.42s ease forwards; pointer-events: none; }
+
+@keyframes anim-target-cell {
+  0%,100% { box-shadow: none; }
+  40%     { box-shadow: inset 0 0 0 2px var(--red), 0 0 6px rgba(240,64,80,0.35); }
+}
+.attack-target-cell { animation: anim-target-cell 0.22s ease; }
 
 /* ── Speed controls ─────────────────────────────────────────────── */
 .combat-speed-controls {
