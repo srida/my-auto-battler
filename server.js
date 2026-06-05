@@ -39,24 +39,29 @@ bootstrap();
 const ADMIN_USER = process.env.ADMIN_USER || 'admin';
 const ADMIN_PASS = process.env.ADMIN_PASS;
 
-if (ADMIN_PASS) {
-  app.use((req, res, next) => {
-    const auth = req.headers.authorization || '';
-    if (!auth.startsWith('Basic ')) {
-      res.set('WWW-Authenticate', 'Basic realm="YGO Card Manager"');
-      return res.status(401).send('Authentification requise');
-    }
-    const [user, pass] = Buffer.from(auth.slice(6), 'base64').toString().split(':');
-    if (user !== ADMIN_USER || pass !== ADMIN_PASS) {
-      res.set('WWW-Authenticate', 'Basic realm="YGO Card Manager"');
-      return res.status(401).send('Identifiants incorrects');
-    }
-    next();
-  });
+function requireAuth(req, res, next) {
+  if (!ADMIN_PASS) return next();
+  const auth = req.headers.authorization || '';
+  if (!auth.startsWith('Basic ')) {
+    res.set('WWW-Authenticate', 'Basic realm="YGO Card Manager"');
+    return res.status(401).send('Authentification requise');
+  }
+  const [user, pass] = Buffer.from(auth.slice(6), 'base64').toString().split(':');
+  if (user !== ADMIN_USER || pass !== ADMIN_PASS) {
+    res.set('WWW-Authenticate', 'Basic realm="YGO Card Manager"');
+    return res.status(401).send('Identifiants incorrects');
+  }
+  next();
 }
 
-// Serve frontend
-app.use(express.static(__dirname));
+// Game (public)
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+
+// Admin (protected)
+app.get('/admin', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
+
+// Illustrations public (game needs card art)
+app.use('/illustrations', express.static(ILLUS_DIR));
 
 // --- Helpers ---
 function readJson(file) {
@@ -77,6 +82,12 @@ function illustrationChecksum(id) {
   if (!fs.existsSync(p)) return null;
   return crypto.createHash('md5').update(fs.readFileSync(p)).digest('hex');
 }
+
+// Protect write operations on /api (reads stay public for the game)
+app.use('/api', (req, res, next) => {
+  if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) return requireAuth(req, res, next);
+  next();
+});
 
 // --- Cards API ---
 app.get('/api/cards', (req, res) => {
@@ -182,12 +193,6 @@ app.delete('/api/cards/:id/illustration', (req, res) => {
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-app.get('/illustrations/:id', (req, res) => {
-  const filePath = path.join(ILLUS_DIR, `${req.params.id}.png`);
-  if (fs.existsSync(filePath)) res.sendFile(filePath);
-  else res.status(404).end();
 });
 
 // --- Archetypes API ---

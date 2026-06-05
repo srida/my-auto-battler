@@ -1,7 +1,7 @@
 {
-  "name": "ygo-card-manager",
+  "name": "ygo-platform",
   "version": "1.0.0",
-  "description": "Yu-Gi-Oh Auto-Battler card database manager",
+  "description": "Yu-Gi-Oh Auto-Battler — game + card manager",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
