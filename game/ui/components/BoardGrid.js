@@ -17,6 +17,7 @@ export class BoardGrid {
     this._materialSelected = new Set();    // "col,row" — selected material units (yellow solid)
     this._selectedPos = null;              // { col, row } | null
     this._el = null;
+    this._frozen = false;
     this._build();
   }
 
@@ -59,7 +60,34 @@ export class BoardGrid {
     this.refresh();
   }
 
+  // Expand to 8-row combat view, render all units, then freeze DOM updates.
+  enterCombatMode() {
+    this._frozen = false;
+    this._displayRows = 8;
+    this._highlighted = new Set();
+    this._materialCandidates = new Set();
+    this._materialSelected = new Set();
+    this._selectedPos = null;
+    this._build();
+    this.refresh();
+    this._frozen = true;
+    this._el.classList.add('combat-mode');
+  }
+
+  // Return to 4-row prep view and unfreeze.
+  exitCombatMode() {
+    this._frozen = false;
+    this._displayRows = 4;
+    this._el.classList.remove('combat-mode');
+    this._build();
+    this.refresh();
+  }
+
+  // Returns the underlying grid DOM element (needed by CombatAnimator).
+  gridEl() { return this._el; }
+
   refresh() {
+    if (this._frozen) return;
     if (!this._el) return;
     this._el.querySelectorAll('.board-cell').forEach(cell => {
       const col = +cell.dataset.col;

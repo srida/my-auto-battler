@@ -422,6 +422,73 @@
 .graveyard-units .unit-card.neutralized.material-candidate { opacity: 1; filter: none; }
 .graveyard-units .unit-card.neutralized.material-selected { opacity: 1; filter: none; }
 
+/* ── Combat animations ──────────────────────────────────────────── */
+@keyframes anim-shake {
+  0%,100% { transform: translateX(0); }
+  25%     { transform: translateX(-5px); }
+  75%     { transform: translateX(5px); }
+}
+@keyframes anim-hit {
+  0%   { filter: brightness(1); }
+  45%  { filter: brightness(2.5) saturate(0.2) sepia(1) hue-rotate(-10deg); }
+  100% { filter: brightness(1); }
+}
+@keyframes anim-heal {
+  0%   { filter: brightness(1); }
+  45%  { filter: brightness(1.8) saturate(2) hue-rotate(100deg); }
+  100% { filter: brightness(1); }
+}
+@keyframes anim-shield {
+  0%,100% { box-shadow: none; }
+  50%     { box-shadow: 0 0 14px 5px #f0c040; }
+}
+@keyframes anim-poison {
+  0%   { filter: brightness(1); }
+  45%  { filter: brightness(1.5) saturate(1.5) hue-rotate(200deg); }
+  100% { filter: brightness(1); }
+}
+@keyframes anim-paralysis {
+  0%,100% { opacity: 1; }
+  50%     { opacity: 0.3; }
+}
+@keyframes anim-power-cast {
+  0%,100% { transform: scale(1); }
+  50%     { transform: scale(1.18); }
+}
+@keyframes anim-death {
+  0%   { opacity: 1; filter: grayscale(0); }
+  100% { opacity: 0; filter: grayscale(1) brightness(0.5); }
+}
+.anim-shake      { animation: anim-shake      0.28s ease; }
+.anim-hit        { animation: anim-hit        0.25s ease; }
+.anim-heal       { animation: anim-heal       0.35s ease; }
+.anim-shield     { animation: anim-shield     0.4s  ease; }
+.anim-poison     { animation: anim-poison     0.32s ease; }
+.anim-paralysis  { animation: anim-paralysis  0.35s ease; }
+.anim-power-cast { animation: anim-power-cast 0.3s  ease; }
+.anim-death      { animation: anim-death      0.42s ease forwards; pointer-events: none; }
+
+/* ── Speed controls ─────────────────────────────────────────────── */
+.combat-speed-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.speed-label {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.speed-btn { padding: 0 14px; min-height: 36px; font-size: 13px; }
+.speed-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* ── Board combat mode ──────────────────────────────────────────── */
+/* Wider max-width: hand is hidden so the board can use more vertical space */
+.board-grid.combat-mode {
+  max-width: min(100%, calc(80vh * 5 / 8));
+}
+
 /* End-of-round overlay */
 .end-round-overlay {
   position: absolute;

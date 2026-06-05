@@ -11,6 +11,7 @@ import { CombatManager } from '../../logic/CombatManager.js';
 import * as InvocationManager from '../../logic/InvocationManager.js';
 import { BoardGrid } from '../components/BoardGrid.js';
 import { HandUI } from '../components/HandUI.js';
+import { CombatAnimator } from '../components/CombatAnimator.js';
 import { createUnitEl } from '../components/UnitCard.js';
 import * as Tooltip from '../components/Tooltip.js';
 
@@ -61,6 +62,12 @@ export async function mount(container, params = {}) {
       <div class="hand-area" id="hand-area"></div>
       <div class="phase-controls">
         <button class="btn btn-primary btn-full" id="btn-combat">Lancer le combat</button>
+        <div class="combat-speed-controls" id="speed-controls" style="display:none">
+          <span class="speed-label">Vitesse</span>
+          <button class="btn btn-secondary speed-btn active" data-speed="1">×1</button>
+          <button class="btn btn-secondary speed-btn" data-speed="2">×2</button>
+          <button class="btn btn-secondary speed-btn" data-speed="4">×4</button>
+        </div>
       </div>
     </div>
   `;
@@ -434,32 +441,52 @@ export async function mount(container, params = {}) {
   // ── Combat ───────────────────────────────────────────────────────────────
 
   function runCombat() {
-    graveyard = [];  // Previous graveyard no longer available during combat
+    graveyard = [];
     btnCombat.disabled = true;
     phaseLabel.textContent = `Combat — Tour ${gameState.round}`;
+    phaseLabel.style.color = '';
 
     // Enemy setup
     const enemyHand = enemyAI.selectHand();
     gameState.startCombat(hand.length, enemyHand.length);
     const enemyUnits = enemyAI.placeUnits(board, gameState.enemy_board_slots);
 
-    // Collect player units before combat
+    // Player units + archetypes
     const playerUnits = board.getLivingUnitsOnSide('player');
-
-    // Archetype bonuses
     const archetypeList = ArchetypeDatabase.getAllArchetypes();
     const archetypeManager = new ArchetypeManager(archetypeList, playerUnits, enemyUnits);
     archetypeManager.applyStartOfCombat();
 
-    // Run headless combat (Phase 6 will animate)
     const combat = new CombatManager(board, playerUnits, enemyUnits, archetypeManager);
-    let steps = 0;
-    while (!combat.isOver && steps < 20000) {
-      combat.step();
-      steps++;
-    }
 
-    // Collect neutralized units for archetype end-of-combat
+    // Switch to combat UI
+    grid.enterCombatMode();
+    handArea.style.display = 'none';
+    container.querySelector('#graveyard-area').style.display = 'none';
+    btnCombat.style.display = 'none';
+    const speedControls = container.querySelector('#speed-controls');
+    speedControls.style.display = '';
+
+    // Wire speed buttons (once per combat)
+    let currentSpeed = 1;
+    const animator = new CombatAnimator(combat, grid.gridEl(), {
+      onFinished: () => _finishCombat(combat, playerUnits, enemyUnits, archetypeManager),
+    });
+
+    speedControls.querySelectorAll('.speed-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        currentSpeed = +btn.dataset.speed;
+        animator.setSpeed(currentSpeed);
+        speedControls.querySelectorAll('.speed-btn')
+          .forEach(b => b.classList.toggle('active', b === btn));
+      }, { once: false });
+    });
+
+    animator.start();
+  }
+
+  function _finishCombat(combat, playerUnits, enemyUnits, archetypeManager) {
+    // Post-combat archetype effects
     const playerNeutralized = playerUnits.filter(u => u.is_neutralized);
     const enemyNeutralized  = enemyUnits.filter(u => u.is_neutralized);
     const archetypeResult = archetypeManager.applyEndOfCombat(playerNeutralized, enemyNeutralized);
@@ -477,7 +504,7 @@ export async function mount(container, params = {}) {
       if (u.is_neutralized) board.removeUnit(u);
     }
 
-    // Re-place revived units at their initial position (or first empty cell)
+    // Re-place revived units
     for (const u of archetypeResult.revived) {
       u.is_neutralized = false;
       const target = u.initial_position && !board.isOccupied(u.initial_position)
@@ -486,20 +513,27 @@ export async function mount(container, params = {}) {
       if (target) board.placeUnit(u, target);
     }
 
-    // Units still neutralized after revive effects → go to graveyard for next preparation
+    // Units still neutralized → graveyard for next preparation
     graveyard = playerUnits.filter(u => u.is_neutralized);
 
-    // Survivors return to initial position
+    // Survivors return to initial_position
     for (const u of board.getLivingUnitsOnSide('player')) {
       if (u.initial_position) {
         const init = u.initial_position;
         if (!board.isOccupied(init) || board.getUnit(init) === u) {
-          if (board.getUnit(u.position) === u && u.position.col !== init.col || u.position.row !== init.row) {
+          if (board.getUnit(u.position) === u &&
+              (u.position.col !== init.col || u.position.row !== init.row)) {
             board.moveUnit(u, init);
           }
         }
       }
     }
+
+    // Restore preparation UI
+    grid.exitCombatMode();
+    handArea.style.display = '';
+    container.querySelector('#speed-controls').style.display = 'none';
+    btnCombat.style.display = '';
 
     _showEndRound(winner);
   }
