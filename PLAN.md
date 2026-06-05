@@ -149,10 +149,10 @@ Appliqué symétriquement. Tension risk/reward : garder des cartes en main boost
 ### Phase 1 — Foundation *(1 jour)*
 **Objectif :** squelette navigable, design system CSS en place.
 
-- [ ] `index.html` : shell SPA avec `<div id="screen">` et import du module principal
-- [ ] `game/main.js` : router minimaliste (swap d'écrans)
-- [ ] `game.css` : variables CSS (reprend le design system de `admin.html` + nouvelles vars jeu)
-- [ ] Route Express `app.use('/game', express.static(...))` pour les modules
+- [x] `index.html` : shell SPA avec `<div id="screen">` et import du module principal
+- [x] `game/main.js` : router minimaliste (swap d'écrans)
+- [x] `game/game.css` : variables CSS (reprend le design system de `admin.html` + nouvelles vars jeu)
+- [x] Route Express `app.use('/game', express.static(...))` pour les modules
 
 **Critère de sortie :** 4 écrans vides navigables (MainMenu → DeckSelector → DeckBuilder → Game).
 
@@ -161,10 +161,10 @@ Appliqué symétriquement. Tension risk/reward : garder des cartes en main boost
 ### Phase 2 — Data layer *(1 jour)*
 **Objectif :** accès aux données depuis n'importe quel module.
 
-- [ ] `CardDatabase.js` — `getCard(id)`, `getCardsByTier(tier)`, `getAllCards()`, `buildDeckFromIds(ids)`
-- [ ] `ArchetypeDatabase.js` — `getArchetype(id)`, `archetypes` (dict)
-- [ ] `PowerDatabase.js` — `getPower(id)`
-- [ ] `DeckRepository.js` — `saveDeck`, `loadDeck`, `getActiveDeck`, `setActiveDeck`, `hasDeck`, `listDecks`
+- [x] `CardDatabase.js` — `getCard(id)`, `getCardsByTier(tier)`, `getAllCards()`, `buildDeckFromIds(ids)`
+- [x] `ArchetypeDatabase.js` — `getArchetype(id)`, `archetypes` (dict)
+- [x] `PowerDatabase.js` — `getPower(id)`
+- [x] `DeckRepository.js` — `saveDeck`, `loadDeck`, `getActiveDeck`, `setActiveDeck`, `hasDeck`, `listDecks`
 
 Chaque database expose `init()` async, les données sont cachées en mémoire après le premier fetch.
 
@@ -340,9 +340,9 @@ Ces règles sont héritées du projet Godot et s'appliquent à la version web :
 - [x] Illustrations servies à `/illustrations/:id`
 - [x] `index.html` placeholder à `/`
 - [x] Auth scopée (écriture API protégée, lecture et illustrations publiques)
-- [ ] Phase 1 — Foundation
-- [ ] Phase 2 — Data layer
-- [ ] Phase 3 — Logique headless
+- [x] Phase 1 — Foundation
+- [x] Phase 2 — Data layer
+- [x] Phase 3 — Logique headless
 - [ ] Phase 4 — Navigation
 - [ ] Phase 5 — Board UI
 - [ ] Phase 6 — Combat visuel

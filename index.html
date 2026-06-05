@@ -2,43 +2,102 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>YGO Auto-Battler</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
+<link rel="stylesheet" href="/game/game.css">
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: #0f1117;
-    color: #e8eaf6;
-    font-family: 'Segoe UI', system-ui, sans-serif;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-    gap: 24px;
-    text-align: center;
-    padding: 24px;
-  }
-  h1 { font-size: 2.5rem; font-weight: 800; letter-spacing: 1px; color: #6c63ff; }
-  p { color: #8892b0; font-size: 1.1rem; max-width: 400px; line-height: 1.6; }
-  .badge {
-    background: #1a1d26;
-    border: 1px solid #2d3148;
-    border-radius: 8px;
-    padding: 8px 20px;
-    font-size: 0.85rem;
-    color: #8892b0;
-    letter-spacing: 0.5px;
-  }
-  a { color: #6c63ff; text-decoration: none; }
-  a:hover { text-decoration: underline; }
+/* MainMenu */
+.main-menu {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 48px;
+  padding: 32px 24px;
+}
+.main-menu-hero { text-align: center; }
+.main-menu-logo { font-size: 72px; line-height: 1; margin-bottom: 16px; }
+.main-menu-title { font-size: 2rem; font-weight: 800; letter-spacing: 1px; color: var(--accent); margin-bottom: 8px; }
+.main-menu-subtitle { color: var(--muted); font-size: 0.9rem; }
+.main-menu-actions { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 300px; }
+.btn-full { width: 100%; }
+
+/* DeckSelector */
+.deck-list { display: flex; flex-direction: column; gap: 10px; }
+.empty-state { text-align: center; padding: 60px 24px; }
+.empty-icon { font-size: 48px; margin-bottom: 16px; }
+.empty-text { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+.empty-sub { color: var(--muted); font-size: 13px; }
+.deck-selector-footer { padding: 12px 16px; border-top: 1px solid var(--border); background: var(--surface); }
+
+/* DeckBuilder */
+.deck-builder-layout {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.deck-slots-panel, .card-browser-panel {
+  padding: 12px 16px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.deck-slots-panel { border-bottom: 1px solid var(--border); max-height: 40%; }
+.card-browser-panel { flex: 1; }
+.panel-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; font-weight: 600; margin-bottom: 10px; }
+.deck-tiers { display: flex; flex-direction: column; gap: 8px; }
+.tier-row { display: flex; align-items: center; gap: 8px; }
+.tier-label { flex-shrink: 0; min-width: 54px; text-align: center; }
+.tier-slots { display: flex; gap: 4px; flex-wrap: nowrap; overflow-x: auto; }
+.deck-slot { width: 38px; height: 52px; border-radius: var(--radius-sm); border: 1px dashed var(--border); flex-shrink: 0; }
+.deck-slot.empty { background: var(--surface2); }
+.search-input {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  outline: none;
+  margin-bottom: 10px;
+}
+.search-input:focus { border-color: var(--accent); }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 8px; }
+.loading-text { color: var(--muted); font-size: 13px; grid-column: 1/-1; }
+
+/* GameScreen */
+.game-layout { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.board-area { flex: 1; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.board-placeholder, .hand-placeholder {
+  text-align: center;
+  color: var(--muted);
+  padding: 24px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+}
+.muted-text { font-size: 11px; color: var(--border); margin-top: 6px; }
+.hand-area {
+  height: var(--hand-height);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  flex-shrink: 0;
+}
+.phase-controls { padding: 12px 16px; border-top: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+.game-hud { display: flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 700; }
+.hud-round { color: var(--muted); }
+.hud-hp.player { color: var(--green); }
+.hud-hp.enemy { color: var(--red); }
 </style>
 </head>
 <body>
-  <h1>⚔️ YGO Auto-Battler</h1>
-  <p>Le jeu arrive bientôt.<br>En cours de développement.</p>
-  <span class="badge">Work in progress</span>
-  <a href="/admin">→ Card Manager</a>
+  <div id="screen"></div>
+  <script type="module" src="/game/main.js"></script>
 </body>
 </html>

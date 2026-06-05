@@ -54,6 +54,9 @@ function requireAuth(req, res, next) {
   next();
 }
 
+// Game modules (public, ES modules)
+app.use('/game', express.static(path.join(__dirname, 'game')));
+
 // Game (public)
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 

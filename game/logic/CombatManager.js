@@ -1,0 +1,284 @@
+import { chebyshevDistance, findClosestEnemy, stepToward } from './PathFinder.js';
+
+// Power constants
+const POWER_SUPER_ATTACK_MULT = 3;
+const POWER_HEAL_RATIO = 0.4;        // % of healer max_hp
+const POWER_SHIELD_MULT = 2;         // × atk
+const POWER_PARALYSIS_MODIFIER = 6;  // added to attack_speed
+const POWER_PARALYSIS_TICKS = 20;
+const POWER_BLOCK_TICKS = 25;
+const DOT_DAMAGE_DIVISOR = 2;
+const DOT_INTERVAL = 3;              // global steps between DOT pulses
+const DOT_PULSES = 5;
+
+export class CombatManager {
+  /**
+   * @param {Board} board
+   * @param {Unit[]} playerUnits
+   * @param {Unit[]} enemyUnits
+   * @param {ArchetypeManager} archetypeManager
+   */
+  constructor(board, playerUnits, enemyUnits, archetypeManager) {
+    this.board = board;
+    this.playerUnits = playerUnits;
+    this.enemyUnits = enemyUnits;
+    this.archetypeManager = archetypeManager;
+    this.isOver = false;
+    this.winner = null; // 'player' | 'enemy' | 'draw'
+    this._stepCount = 0;
+  }
+
+  /**
+   * Advance the combat by one tick.
+   * Returns an array of events describing what happened.
+   * Event shapes:
+   *   { type: 'move',    unit, from, to }
+   *   { type: 'attack',  attacker, target, damage }
+   *   { type: 'power',   unit, targets, power_id, extra }
+   *   { type: 'dot',     unit, damage }
+   *   { type: 'death',   unit }
+   *   { type: 'combat_end', winner }
+   */
+  step() {
+    if (this.isOver) return [{ type: 'combat_end', winner: this.winner }];
+
+    const events = [];
+    this._stepCount++;
+
+    const allUnits = [...this.playerUnits, ...this.enemyUnits];
+    const livingUnits = allUnits.filter(u => u.isAlive());
+
+    // Sort by initiative descending for deterministic tie-breaking
+    livingUnits.sort((a, b) => b.initiative - a.initiative || a.uid - b.uid);
+
+    // ── 1. Passive ticks (power gauge, DOT, paralysis, power block) ──
+    for (const u of livingUnits) {
+      u.power_gauge++;
+
+      // Paralysis countdown
+      if (u.paralysis_remaining > 0) {
+        u.paralysis_remaining--;
+        if (u.paralysis_remaining === 0) u.attack_speed_modifier = 0;
+      }
+
+      // Power block countdown
+      if (u.power_block_remaining > 0) {
+        u.power_block_remaining--;
+        if (u.power_block_remaining === 0) u.is_power_blocked = false;
+      }
+
+      // DOT pulses
+      for (const dot of u.dot_effects.slice()) {
+        dot.timer++;
+        if (dot.timer >= dot.interval) {
+          dot.timer = 0;
+          dot.remaining--;
+          u.takeDamage(dot.damage);
+          events.push({ type: 'dot', unit: u, damage: dot.damage });
+        }
+      }
+      u.dot_effects = u.dot_effects.filter(d => d.remaining > 0);
+    }
+
+    // ── 2. Deaths from DOT ──
+    this._checkDeaths(livingUnits, events);
+    if (this._checkEnd(events)) return events;
+
+    // ── 3. Movement (independent timer) ──
+    for (const u of livingUnits) {
+      if (!u.isAlive()) continue;
+      u.move_timer++;
+      if (u.move_timer < u.movement_speed) continue;
+      u.move_timer = 0;
+
+      const enemies = this._enemies(u).filter(e => e.isAlive());
+      if (enemies.length === 0) continue;
+      const { unit: target } = findClosestEnemy(u, enemies);
+      const dist = chebyshevDistance(u.position, target.position);
+      if (dist <= u.range) continue; // already in range, no need to move
+
+      const next = stepToward(this.board, u.position, target.position);
+      if (next && !this.board.isOccupied(next)) {
+        const from = { ...u.position };
+        this.board.moveUnit(u, next);
+        events.push({ type: 'move', unit: u, from, to: { ...u.position } });
+      }
+    }
+
+    // ── 4. Attacks / powers ──
+    for (const u of livingUnits) {
+      if (!u.isAlive()) continue;
+      u.attack_timer++;
+      if (u.attack_timer < u.effectiveAttackSpeed()) continue;
+      u.attack_timer = 0;
+
+      const enemies = this._enemies(u).filter(e => e.isAlive());
+      if (enemies.length === 0) continue;
+      const { unit: target, distance } = findClosestEnemy(u, enemies);
+      if (distance > u.range) continue; // out of range this tick
+
+      if (u.isPowerReady()) {
+        u.power_gauge = 0;
+        this._firePower(u, target, events);
+      } else {
+        this._normalAttack(u, target, events);
+      }
+    }
+
+    // ── 5. Deaths from attacks ──
+    this._checkDeaths(allUnits, events);
+    this._checkEnd(events);
+
+    // ── 6. During-combat archetype triggers (stat_modifier) ──
+    // stat_modifier triggers are fired from CombatManager via ArchetypeManager callbacks
+    // This is handled by events; the ArchetypeManager is called reactively on 'death' events.
+
+    return events;
+  }
+
+  _enemies(unit) {
+    return unit.side === 'player' ? this.enemyUnits : this.playerUnits;
+  }
+
+  _allies(unit) {
+    return unit.side === 'player' ? this.playerUnits : this.enemyUnits;
+  }
+
+  _normalAttack(attacker, target, events) {
+    const damage = attacker.atk;
+    target.takeDamage(damage);
+    events.push({ type: 'attack', attacker, target, damage });
+  }
+
+  _firePower(unit, primaryTarget, events) {
+    const pid = unit.power_id;
+    const allies = this._allies(unit).filter(u => u.isAlive());
+    const enemies = this._enemies(unit).filter(u => u.isAlive());
+
+    switch (pid) {
+      case 'POWER_HEAL': {
+        // Heal the ally with the lowest current_hp (including self)
+        const lowestAlly = allies.reduce((a, b) => a.current_hp < b.current_hp ? a : b, allies[0]);
+        if (lowestAlly) {
+          const amount = Math.floor(unit.max_hp * POWER_HEAL_RATIO);
+          lowestAlly.heal(amount);
+          events.push({ type: 'power', unit, targets: [lowestAlly], power_id: pid, extra: { amount } });
+        }
+        break;
+      }
+
+      case 'POWER_SHIELD': {
+        const amount = unit.atk * POWER_SHIELD_MULT;
+        unit.applyShield(amount);
+        events.push({ type: 'power', unit, targets: [unit], power_id: pid, extra: { amount } });
+        break;
+      }
+
+      case 'POWER_SUPER_ATTACK': {
+        const damage = unit.atk * POWER_SUPER_ATTACK_MULT;
+        primaryTarget.takeDamage(damage);
+        events.push({ type: 'power', unit, targets: [primaryTarget], power_id: pid, extra: { damage } });
+        break;
+      }
+
+      case 'POWER_AOE_ATTACK': {
+        const damage = unit.atk;
+        for (const e of enemies) e.takeDamage(damage);
+        events.push({ type: 'power', unit, targets: [...enemies], power_id: pid, extra: { damage } });
+        break;
+      }
+
+      case 'POWER_POISON': {
+        const dot = {
+          damage: Math.max(1, Math.floor(unit.atk / DOT_DAMAGE_DIVISOR)),
+          remaining: DOT_PULSES,
+          interval: DOT_INTERVAL,
+          timer: 0,
+        };
+        primaryTarget.dot_effects.push(dot);
+        events.push({ type: 'power', unit, targets: [primaryTarget], power_id: pid, extra: dot });
+        break;
+      }
+
+      case 'POWER_PARALYSIS': {
+        primaryTarget.attack_speed_modifier += POWER_PARALYSIS_MODIFIER;
+        primaryTarget.paralysis_remaining = POWER_PARALYSIS_TICKS;
+        events.push({ type: 'power', unit, targets: [primaryTarget], power_id: pid, extra: { ticks: POWER_PARALYSIS_TICKS } });
+        break;
+      }
+
+      case 'POWER_PUSH': {
+        const pushCells = unit.power_value ?? 2;
+        const pushed = this._pushUnit(primaryTarget, unit.position, pushCells);
+        events.push({ type: 'power', unit, targets: [primaryTarget], power_id: pid, extra: { pushed } });
+        break;
+      }
+
+      case 'POWER_DEBUFF': {
+        primaryTarget.resetCombatStats();
+        // After reset, re-apply archetype bonuses that were earned at start of combat
+        if (this.archetypeManager) {
+          this.archetypeManager.reapplyBonuses(primaryTarget);
+        }
+        events.push({ type: 'power', unit, targets: [primaryTarget], power_id: pid });
+        break;
+      }
+
+      case 'POWER_BLOCK': {
+        primaryTarget.is_power_blocked = true;
+        primaryTarget.power_block_remaining = POWER_BLOCK_TICKS;
+        events.push({ type: 'power', unit, targets: [primaryTarget], power_id: pid });
+        break;
+      }
+
+      default:
+        // Unknown power — fall back to normal attack
+        this._normalAttack(unit, primaryTarget, events);
+    }
+  }
+
+  // Push target away from attacker's position by `cells` steps in a straight line
+  _pushUnit(target, attackerPos, cells) {
+    const dirCol = Math.sign(target.position.col - attackerPos.col);
+    const dirRow = Math.sign(target.position.row - attackerPos.row);
+    let pushed = 0;
+    for (let i = 0; i < cells; i++) {
+      const next = { col: target.position.col + dirCol, row: target.position.row + dirRow };
+      if (!this.board.isInBounds(next) || this.board.isOccupied(next)) break;
+      this.board.moveUnit(target, next);
+      pushed++;
+    }
+    return pushed;
+  }
+
+  _checkDeaths(units, events) {
+    for (const u of units) {
+      if (u.is_neutralized && !u._deathEmitted) {
+        u._deathEmitted = true;
+        this.board.removeUnit(u);
+        events.push({ type: 'death', unit: u });
+
+        // Trigger during-combat archetype stat_modifiers
+        if (this.archetypeManager) {
+          const evts = this.archetypeManager.onUnitNeutralized(u, this.playerUnits, this.enemyUnits);
+          events.push(...evts);
+        }
+      }
+    }
+  }
+
+  _checkEnd(events) {
+    const pAlive = this.playerUnits.some(u => u.isAlive());
+    const eAlive = this.enemyUnits.some(u => u.isAlive());
+
+    if (pAlive && eAlive) return false;
+
+    this.isOver = true;
+    if (pAlive)       this.winner = 'player';
+    else if (eAlive)  this.winner = 'enemy';
+    else              this.winner = 'draw';
+
+    events.push({ type: 'combat_end', winner: this.winner });
+    return true;
+  }
+}
