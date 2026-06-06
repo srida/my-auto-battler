@@ -214,7 +214,7 @@ export class BoardGrid {
           const cellEl = els.find(x => x.classList.contains('board-cell'));
           if (cellEl) this._onUnitDrag?.(unit, pos, { col: +cellEl.dataset.col, row: +cellEl.dataset.row });
         } else {
-          this._onUnitTap?.(unit, pos);
+          this._onUnitTap?.(unit, pos, el);
         }
       };
 

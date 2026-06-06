@@ -79,16 +79,16 @@ export function canSummon(card, pos, board, hand, graveyard = []) {
  *        (if null, removes the first N living player units)
  * @returns {Unit}
  */
-export function summon(card, pos, board, hand, sacrificeTargets = null) {
+export function summon(card, pos, board, hand, sacrificeTargets = null, handIdx = null) {
   const unit = new Unit(card, 'player');
 
   switch (card.summon_type) {
     case 'normal':
-      _removeFromHand(hand, card.id);
+      _removeFromHand(hand, card.id, handIdx);
       break;
 
     case 'sacrifice': {
-      _removeFromHand(hand, card.id);
+      _removeFromHand(hand, card.id, handIdx);
       const needed = card.cost?.sacrifice ?? 0;
       const toRemove = sacrificeTargets
         ? sacrificeTargets.slice(0, needed)
@@ -98,7 +98,7 @@ export function summon(card, pos, board, hand, sacrificeTargets = null) {
     }
 
     case 'fusion': {
-      _removeFromHand(hand, card.id);
+      _removeFromHand(hand, card.id, handIdx);
       if (sacrificeTargets && sacrificeTargets.length > 0) {
         for (const u of sacrificeTargets) board.removeUnit(u);
       } else {
@@ -113,7 +113,7 @@ export function summon(card, pos, board, hand, sacrificeTargets = null) {
     }
 
     case 'rituel': {
-      _removeFromHand(hand, card.id);
+      _removeFromHand(hand, card.id, handIdx);
       if (sacrificeTargets && sacrificeTargets.length > 0) {
         for (const u of sacrificeTargets) board.removeUnit(u);
       } else {
@@ -132,7 +132,7 @@ export function summon(card, pos, board, hand, sacrificeTargets = null) {
     }
 
     case 'transformation': {
-      _removeFromHand(hand, card.id);
+      _removeFromHand(hand, card.id, handIdx);
       const targetId = card.cost?.materials?.[0];
       // Prefer the explicitly-passed unit (fixes same-name ambiguity)
       const targetUnit = sacrificeTargets?.find(u => u.card_id === targetId && u.isAlive())
@@ -149,8 +149,10 @@ export function summon(card, pos, board, hand, sacrificeTargets = null) {
   return unit;
 }
 
-function _removeFromHand(hand, cardId) {
-  const idx = hand.findIndex(c => c.id === cardId);
+function _removeFromHand(hand, cardId, atIdx = null) {
+  const idx = (atIdx !== null && hand[atIdx]?.id === cardId)
+    ? atIdx
+    : hand.findIndex(c => c.id === cardId);
   if (idx !== -1) hand.splice(idx, 1);
 }
 

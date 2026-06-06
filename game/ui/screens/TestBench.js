@@ -24,6 +24,7 @@ export async function mount(container) {
   let searchQuery = '';
   let phase = 'prep';              // 'prep' | 'combat'
   let inspector = false;
+  let _selectedBrowserBtn = null;  // currently selected browser card button
 
   // ── Shell ─────────────────────────────────────────────────────────────────
 
@@ -42,6 +43,7 @@ export async function mount(container) {
           <button class="tb-side-btn active" data-side="player">Joueur</button>
           <button class="tb-side-btn"        data-side="enemy">Ennemi</button>
         </div>
+        <div class="archetype-panel" id="tb-archetype-panel"></div>
         <div class="board-area" id="tb-board-area"></div>
         <div id="tb-speed-controls" class="combat-speed-controls" style="display:none;padding:6px 12px;border-top:1px solid var(--border)">
           <span class="speed-label">Vitesse</span>
@@ -82,6 +84,7 @@ export async function mount(container) {
       if (phase !== 'prep') return;
       board.removeUnit(unit);
       grid.refresh();
+      _refreshArchetypePanel();
     },
     showEnemySide: true,
     powerDb: PowerDatabase,
@@ -105,12 +108,12 @@ export async function mount(container) {
     const unit = new Unit(selectedCard, side);
     board.placeUnit(unit, pos);
     grid.refresh();
+    _refreshArchetypePanel();
   }
 
-  function handleUnitTap(unit) {
-    Tooltip.hide();
+  function handleUnitTap(unit, pos, el) {
     if (phase !== 'prep') return;
-    // Long press handles removal; single tap shows tooltip is handled elsewhere
+    Tooltip.toggle(Tooltip.unitHtml(unit, PowerDatabase, ArchetypeDatabase), el);
   }
 
   function handleUnitDrag(unit, fromPos, toPos) {
@@ -180,10 +183,12 @@ export async function mount(container) {
     });
 
     grid_el.innerHTML = '';
+    _selectedBrowserBtn = null;
     for (const c of filtered) {
       const btn = document.createElement('button');
       const costHint = _costHint(c);
-      btn.className = 'card-item hand-card' + (selectedCard?.id === c.id ? ' selected' : '');
+      const isSelected = selectedCard?.id === c.id;
+      btn.className = 'card-item hand-card' + (isSelected ? ' selected' : '');
       btn.dataset.id = c.id;
       btn.innerHTML = `
         <img src="/illustrations/${c.id}" alt="${_esc(c.name)}" loading="lazy" draggable="false">
@@ -191,6 +196,7 @@ export async function mount(container) {
         <span class="hand-card-name">${_esc(c.name)}</span>
         ${costHint ? `<span class="hand-card-cost">${costHint}</span>` : ''}
       `;
+      if (isSelected) _selectedBrowserBtn = btn;
 
       let longPressTimer;
       btn.addEventListener('pointerdown', () => {
@@ -203,12 +209,43 @@ export async function mount(container) {
       btn.addEventListener('click', () => {
         clearTimeout(longPressTimer);
         Tooltip.hide();
-        selectedCard = selectedCard?.id === c.id ? null : c;
-        renderBrowser();
+        const wasSelected = selectedCard?.id === c.id;
+        selectedCard = wasSelected ? null : c;
+        // Toggle CSS only — no full re-render (avoids img reload)
+        if (_selectedBrowserBtn) _selectedBrowserBtn.classList.remove('selected');
+        _selectedBrowserBtn = wasSelected ? null : btn;
+        if (_selectedBrowserBtn) _selectedBrowserBtn.classList.add('selected');
       });
 
       grid_el.appendChild(btn);
     }
+  }
+
+  function _refreshArchetypePanel() {
+    const panel = container.querySelector('#tb-archetype-panel');
+    if (!panel) return;
+    const playerUnits = board.getLivingUnitsOnSide('player');
+    if (playerUnits.length === 0) { panel.innerHTML = ''; return; }
+    const archetypeList = ArchetypeDatabase.getAllArchetypes();
+    const mgr = new ArchetypeManager(archetypeList, playerUnits, []);
+    const synergies = mgr.getActiveSynergies(playerUnits);
+    panel.innerHTML = synergies.map(({ arch, count, activeThreshold, nextThreshold }) => {
+      const isActive = !!activeThreshold;
+      const label = nextThreshold ? `${count}/${nextThreshold.count}` : `${count}`;
+      return `<button class="archetype-chip${isActive ? ' arch-active' : ''}" data-arch-id="${arch.id}" title="${arch.name}">`
+        + `<span class="archetype-chip-icon">${arch.icon ?? '?'}</span>`
+        + `<span class="archetype-chip-count">${label}</span>`
+        + `</button>`;
+    }).join('');
+    panel.querySelectorAll('.archetype-chip').forEach(chip => {
+      chip.addEventListener('pointerdown', e => {
+        e.stopPropagation();
+        const archId = chip.dataset.archId;
+        const s = synergies.find(x => x.arch.id === archId);
+        if (!s) return;
+        Tooltip.toggle(Tooltip.archetypeHtml(s.arch, s.count, s.activeThreshold, CardDatabase), chip);
+      });
+    });
   }
 
   // ── Combat ────────────────────────────────────────────────────────────────

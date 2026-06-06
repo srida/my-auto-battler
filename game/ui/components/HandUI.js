@@ -22,6 +22,8 @@ export class HandUI {
     return this._selectedIdx !== null ? this._hand[this._selectedIdx] : null;
   }
 
+  getSelectedIdx() { return this._selectedIdx; }
+
   // Remove the currently selected card from hand (after placement).
   // The external `hand` array is already spliced by InvocationManager before this is called.
   removeSelected() {

@@ -37,6 +37,7 @@ export async function mount(container, params = {}) {
   const enemyAI = new EnemyAI(rawDeck, CardDatabase);
   let hand = [];
   let graveyard = [];           // Neutralized player units from last combat, usable as material
+  let _graveyardElMap = new Map(); // uid → DOM element (smart diff to avoid img rebuilds)
   let selectedCard = null;
   let selectedBoardPos = null;
   let selectedMaterials = [];  // Unit[] — board or graveyard units selected as material/tribute
@@ -206,7 +207,8 @@ export async function mount(container, params = {}) {
         return;
       }
     }
-    InvocationManager.summon(card, pos, board, hand, selectedMaterials.length > 0 ? selectedMaterials : null);
+    const selIdx = handUI.getSelectedIdx();
+    InvocationManager.summon(card, pos, board, hand, selectedMaterials.length > 0 ? selectedMaterials : null, selIdx);
     // Remove consumed graveyard units
     for (const u of selectedMaterials) {
       const gi = graveyard.indexOf(u);
@@ -221,6 +223,7 @@ export async function mount(container, params = {}) {
     grid.refresh();
     _updateHUD();
     _refreshGraveyard();
+    _refreshArchetypePanel();
   }
 
   function handleUnitDrag(unit, fromPos, toPos) {
@@ -396,44 +399,63 @@ export async function mount(container, params = {}) {
   }
 
   function _refreshGraveyard() {
-    _refreshArchetypePanel();
-    const graveyardArea   = container.querySelector('#graveyard-area');
+    const graveyardArea    = container.querySelector('#graveyard-area');
     const graveyardUnitsEl = container.querySelector('#graveyard-units');
 
     if (graveyard.length === 0) {
       graveyardArea.style.display = 'none';
+      _graveyardElMap.clear();
+      graveyardUnitsEl.innerHTML = '';
       return;
     }
     graveyardArea.style.display = '';
 
     const candidates  = new Set(selectedCard ? _materialCandidateGraveyard(selectedCard, selectedMaterials) : []);
     const selectedSet = new Set(selectedMaterials.filter(u => graveyard.includes(u)));
+    const graveyardUidSet = new Set(graveyard.map(u => u.uid));
 
-    graveyardUnitsEl.innerHTML = '';
+    // Remove elements whose unit is no longer in graveyard
+    for (const [uid, el] of _graveyardElMap) {
+      if (!graveyardUidSet.has(uid)) {
+        el.remove();
+        _graveyardElMap.delete(uid);
+      }
+    }
+
+    // Add / update elements, preserving DOM order
     for (const unit of graveyard) {
-      const el = createUnitEl(unit, { materialSelected: selectedSet.has(unit) });
-      if (candidates.has(unit)) el.classList.add('material-candidate');
+      let el = _graveyardElMap.get(unit.uid);
+      if (!el) {
+        el = createUnitEl(unit, { materialSelected: selectedSet.has(unit) });
+        el.classList.toggle('material-candidate', candidates.has(unit));
 
-      let startX, startY, moved = false, longPressTimer;
-      el.addEventListener('pointerdown', e => {
-        e.stopPropagation();
-        startX = e.clientX; startY = e.clientY; moved = false;
-        longPressTimer = setTimeout(() => Tooltip.show(Tooltip.unitHtml(unit, PowerDatabase, ArchetypeDatabase), el), 500);
-        const onMove = ev => {
-          if (Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) > 10) moved = true;
-        };
-        const onUp = () => {
-          clearTimeout(longPressTimer);
-          document.removeEventListener('pointermove', onMove);
-          document.removeEventListener('pointerup', onUp);
-          document.removeEventListener('pointercancel', onUp);
-          if (!moved) handleGraveyardUnitTap(unit);
-        };
-        document.addEventListener('pointermove', onMove);
-        document.addEventListener('pointerup', onUp);
-        document.addEventListener('pointercancel', onUp);
-      });
-
+        let startX, startY, moved = false, longPressTimer;
+        el.addEventListener('pointerdown', e => {
+          e.stopPropagation();
+          startX = e.clientX; startY = e.clientY; moved = false;
+          longPressTimer = setTimeout(() => Tooltip.show(Tooltip.unitHtml(unit, PowerDatabase, ArchetypeDatabase), el), 500);
+          const onMove = ev => {
+            if (Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) > 10) moved = true;
+          };
+          const onUp = () => {
+            clearTimeout(longPressTimer);
+            document.removeEventListener('pointermove', onMove);
+            document.removeEventListener('pointerup', onUp);
+            document.removeEventListener('pointercancel', onUp);
+            if (!moved) handleGraveyardUnitTap(unit);
+          };
+          document.addEventListener('pointermove', onMove);
+          document.addEventListener('pointerup', onUp);
+          document.addEventListener('pointercancel', onUp);
+        });
+        _graveyardElMap.set(unit.uid, el);
+      } else {
+        // Smart update: only toggle CSS classes, never rebuild the <img>
+        el.classList.toggle('material-selected',  selectedSet.has(unit));
+        el.classList.toggle('material-candidate', candidates.has(unit));
+        el.classList.toggle('neutralized', unit.is_neutralized);
+      }
+      // Append to maintain correct order (no-op if already at right position)
       graveyardUnitsEl.appendChild(el);
     }
   }
@@ -481,6 +503,24 @@ export async function mount(container, params = {}) {
     // Draw cards from round-specific tier pool (duplicates allowed)
     const drawCount = HAND_SIZE + gameState.player_extra_draws;
     hand = _drawHand(cardsByTier, gameState.round, drawCount);
+
+    // Apply guaranteed draws from archetype effects (e.g., Élémentaire: pioche fusion)
+    for (const draw of gameState.player_guaranteed_draws) {
+      const pool = _tiersForRound(gameState.round).flatMap(t => cardsByTier[t] ?? []);
+      const matches = pool.filter(c =>
+        (!draw.archetype || c.archetypes?.includes(draw.archetype)) &&
+        (!draw.category  || c.summon_type === draw.category)
+      );
+      if (matches.length > 0) {
+        hand.push(matches[Math.floor(Math.random() * matches.length)]);
+      } else {
+        // Fallback: any card matching just the archetype
+        const fallback = pool.filter(c => !draw.archetype || c.archetypes?.includes(draw.archetype));
+        if (fallback.length > 0) hand.push(fallback[Math.floor(Math.random() * fallback.length)]);
+      }
+    }
+    gameState.player_guaranteed_draws = [];
+
     handUI.setHand(hand);
 
     selectedCard = null;
@@ -491,6 +531,7 @@ export async function mount(container, params = {}) {
     grid.refresh();
     _updateHUD();
     _refreshGraveyard();
+    _refreshArchetypePanel();
   }
 
   // ── Combat ───────────────────────────────────────────────────────────────
