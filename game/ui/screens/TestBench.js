@@ -191,7 +191,7 @@ export async function mount(container) {
       const btn = document.createElement('button');
       const costHint = _costHint(c);
       const isSelected = selectedCard?.id === c.id;
-      btn.className = 'card-item hand-card' + (isSelected ? ' selected' : '');
+      btn.className = 'card-item tb-browser-card' + (isSelected ? ' selected' : '');
       btn.dataset.id = c.id;
       btn.innerHTML = `
         <img src="/illustrations/${c.id}" alt="${_esc(c.name)}" loading="lazy" draggable="false">
