@@ -660,15 +660,17 @@ img {
   border-color: var(--accent);
   outline: 2px solid var(--accent);
 }
-/* Wrapper establishes the 3/4 aspect ratio independently of image load state */
+/* Wrapper establishes portrait ratio via padding-bottom (width-relative, always reliable) */
 .tb-card-img-wrap {
   width: 100%;
-  aspect-ratio: 3 / 4;
   position: relative;
+  padding-bottom: 133.33%; /* 4/3 = portrait 3:4 */
   overflow: hidden;
   flex-shrink: 0;
 }
 .tb-card-img-wrap img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
