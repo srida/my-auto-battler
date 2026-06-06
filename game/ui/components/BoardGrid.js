@@ -174,7 +174,7 @@ export class BoardGrid {
       startY = e.clientY;
       dragging = false;
       longPressTimer = setTimeout(() => {
-        if (this._onUnitLongPress) this._onUnitLongPress(unit, pos);
+        if (this._onUnitLongPress) this._onUnitLongPress(unit, pos, el);
         else Tooltip.show(Tooltip.unitHtml(unit, this._powerDb, this._archetypeDb), el);
       }, 500);
 

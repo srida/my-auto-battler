@@ -80,8 +80,11 @@ export async function mount(container) {
     onCellTap: handleCellTap,
     onUnitTap: handleUnitTap,
     onUnitDrag: handleUnitDrag,
-    onUnitLongPress: (unit) => {
-      if (phase !== 'prep') return;
+    onUnitLongPress: (unit, pos, el) => {
+      if (phase !== 'prep') {
+        Tooltip.show(Tooltip.unitHtml(unit, PowerDatabase, ArchetypeDatabase), el);
+        return;
+      }
       board.removeUnit(unit);
       grid.refresh();
       _refreshArchetypePanel();
@@ -112,7 +115,6 @@ export async function mount(container) {
   }
 
   function handleUnitTap(unit, pos, el) {
-    if (phase !== 'prep') return;
     Tooltip.toggle(Tooltip.unitHtml(unit, PowerDatabase, ArchetypeDatabase), el);
   }
 
@@ -141,6 +143,7 @@ export async function mount(container) {
       placingSide = btn.dataset.side;
       container.querySelectorAll('.tb-side-btn').forEach(b =>
         b.classList.toggle('active', b === btn));
+      _refreshArchetypePanel();
     });
   });
 
@@ -224,11 +227,13 @@ export async function mount(container) {
   function _refreshArchetypePanel() {
     const panel = container.querySelector('#tb-archetype-panel');
     if (!panel) return;
-    const playerUnits = board.getLivingUnitsOnSide('player');
-    if (playerUnits.length === 0) { panel.innerHTML = ''; return; }
+    const sideUnits = board.getLivingUnitsOnSide(placingSide);
+    if (sideUnits.length === 0) { panel.innerHTML = ''; return; }
     const archetypeList = ArchetypeDatabase.getAllArchetypes();
-    const mgr = new ArchetypeManager(archetypeList, playerUnits, []);
-    const synergies = mgr.getActiveSynergies(playerUnits);
+    const mgr = new ArchetypeManager(archetypeList,
+      placingSide === 'player' ? sideUnits : [],
+      placingSide === 'enemy'  ? sideUnits : []);
+    const synergies = mgr.getActiveSynergies(sideUnits);
     panel.innerHTML = synergies.map(({ arch, count, activeThreshold, nextThreshold }) => {
       const isActive = !!activeThreshold;
       const label = nextThreshold ? `${count}/${nextThreshold.count}` : `${count}`;
