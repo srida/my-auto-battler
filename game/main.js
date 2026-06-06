@@ -4,6 +4,7 @@ const SCREENS = {
   deck_selector: () => import('./ui/screens/DeckSelector.js'),
   deck_builder:  () => import('./ui/screens/DeckBuilder.js'),
   game:          () => import('./ui/screens/GameScreen.js'),
+  testbench:     () => import('./ui/screens/TestBench.js'),
 };
 
 const container = document.getElementById('screen');

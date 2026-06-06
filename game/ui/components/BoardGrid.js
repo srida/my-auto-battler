@@ -4,12 +4,13 @@ import * as Tooltip from './Tooltip.js';
 const COLS = 5;
 
 export class BoardGrid {
-  constructor(container, { rows = 4, onCellTap, onUnitTap, onUnitDrag, showEnemySide = false, powerDb = null, archetypeDb = null } = {}) {
+  constructor(container, { rows = 4, onCellTap, onUnitTap, onUnitDrag, onUnitLongPress = null, showEnemySide = false, powerDb = null, archetypeDb = null } = {}) {
     this._container = container;
     this._displayRows = rows;
     this._onCellTap = onCellTap;
     this._onUnitTap = onUnitTap;
     this._onUnitDrag = onUnitDrag;
+    this._onUnitLongPress = onUnitLongPress;
     this._showEnemySide = showEnemySide;
     this._powerDb = powerDb;
     this._archetypeDb = archetypeDb;
@@ -96,8 +97,8 @@ export class BoardGrid {
       const row = +cell.dataset.row;
       const key = `${col},${row}`;
       const unit = this._board?.getUnit({ col, row });
-      const isSel    = this._selectedPos?.col === col && this._selectedPos?.row === row;
-      const isHl     = this._highlighted.has(key);
+      const isSel     = this._selectedPos?.col === col && this._selectedPos?.row === row;
+      const isHl      = this._highlighted.has(key);
       const isMatCand = this._materialCandidates.has(key);
       const isMatSel  = this._materialSelected.has(key);
 
@@ -108,16 +109,30 @@ export class BoardGrid {
         + (isMatSel  ? ' material-selected-cell' : '')
         + (unit      ? ' occupied' : '');
 
-      // Row labels for combat view boundary
       if (this._displayRows === 8 && row === 4) cell.classList.add('enemy-front');
       if (this._displayRows === 8 && row === 3) cell.classList.add('player-front');
 
-      cell.innerHTML = '';
-      if (unit) {
-        const uEl = createUnitEl(unit, { selected: isSel, materialSelected: isMatSel });
-        this._attachUnit(uEl, unit, { col, row });
-        cell.appendChild(uEl);
+      const existingUnitEl = cell.querySelector('.unit-card');
+
+      if (!unit) {
+        if (existingUnitEl) cell.innerHTML = '';
+        return;
       }
+
+      // Same unit already rendered: only update CSS classes, avoid rebuilding the img
+      if (existingUnitEl && existingUnitEl.dataset.uid === String(unit.uid)) {
+        existingUnitEl.className = 'unit-card unit-' + unit.side
+          + (isSel    ? ' selected' : '')
+          + (isMatSel ? ' material-selected' : '')
+          + (unit.is_neutralized ? ' neutralized' : '');
+        return;
+      }
+
+      // New or different unit: full rebuild
+      cell.innerHTML = '';
+      const uEl = createUnitEl(unit, { selected: isSel, materialSelected: isMatSel });
+      this._attachUnit(uEl, unit, { col, row });
+      cell.appendChild(uEl);
     });
   }
 
@@ -158,7 +173,10 @@ export class BoardGrid {
       startX = e.clientX;
       startY = e.clientY;
       dragging = false;
-      longPressTimer = setTimeout(() => Tooltip.show(Tooltip.unitHtml(unit, this._powerDb, this._archetypeDb), el), 500);
+      longPressTimer = setTimeout(() => {
+        if (this._onUnitLongPress) this._onUnitLongPress(unit, pos);
+        else Tooltip.show(Tooltip.unitHtml(unit, this._powerDb, this._archetypeDb), el);
+      }, 500);
 
       // Track move/up on document so events are received regardless of where the pointer goes
       const onMove = (ev) => {

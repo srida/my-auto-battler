@@ -16,5 +16,5 @@ export async function mount(container) {
   `;
 
   container.querySelector('#btn-play').addEventListener('click', () => navigate('deck_selector'));
-  container.querySelector('#btn-testbench').addEventListener('click', () => navigate('game', { mode: 'testbench' }));
+  container.querySelector('#btn-testbench').addEventListener('click', () => navigate('testbench'));
 }

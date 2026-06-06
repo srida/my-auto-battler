@@ -1,0 +1,352 @@
+import { navigate } from '../../main.js';
+import * as CardDatabase from '../../data/CardDatabase.js';
+import * as PowerDatabase from '../../data/PowerDatabase.js';
+import * as ArchetypeDatabase from '../../data/ArchetypeDatabase.js';
+import { Board } from '../../logic/Board.js';
+import { Unit } from '../../logic/Unit.js';
+import { ArchetypeManager } from '../../logic/ArchetypeManager.js';
+import { CombatManager } from '../../logic/CombatManager.js';
+import { BoardGrid } from '../components/BoardGrid.js';
+import { CombatAnimator } from '../components/CombatAnimator.js';
+import * as Tooltip from '../components/Tooltip.js';
+
+const TIERS = [1, 2, 3, 4, 5];
+const SUMMON_TYPES = ['normal', 'sacrifice', 'fusion', 'rituel', 'transformation'];
+
+export async function mount(container) {
+  await Promise.all([CardDatabase.init(), PowerDatabase.init(), ArchetypeDatabase.init()]);
+
+  const board = new Board();
+  let selectedCard = null;         // card from browser
+  let placingSide = 'player';      // 'player' | 'enemy'
+  let tierFilter = '';             // '' = all
+  let typeFilter = '';
+  let searchQuery = '';
+  let phase = 'prep';              // 'prep' | 'combat'
+  let inspector = false;
+
+  // ── Shell ─────────────────────────────────────────────────────────────────
+
+  container.innerHTML = `
+    <div class="topbar">
+      <button class="topbar-back" id="tb-back">←</button>
+      <span class="topbar-title">TestBench</span>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button class="btn btn-secondary" id="tb-clear" style="min-height:36px;padding:0 12px;font-size:12px">Vider</button>
+        <button class="btn btn-primary"   id="tb-combat" style="min-height:36px;padding:0 12px;font-size:12px">▶ Combat</button>
+      </div>
+    </div>
+    <div class="tb-layout">
+      <div class="tb-board-col">
+        <div class="tb-side-toggle">
+          <button class="tb-side-btn active" data-side="player">Joueur</button>
+          <button class="tb-side-btn"        data-side="enemy">Ennemi</button>
+        </div>
+        <div class="board-area" id="tb-board-area"></div>
+        <div id="tb-speed-controls" class="combat-speed-controls" style="display:none;padding:6px 12px;border-top:1px solid var(--border)">
+          <span class="speed-label">Vitesse</span>
+          <button class="btn btn-secondary speed-btn active" data-speed="1">×1</button>
+          <button class="btn btn-secondary speed-btn"        data-speed="2">×2</button>
+          <button class="btn btn-secondary speed-btn"        data-speed="4">×4</button>
+          <div style="flex:1"></div>
+          <button class="btn btn-secondary speed-btn" id="tb-pause">⏸</button>
+        </div>
+        <div id="tb-inspector" style="display:none"></div>
+      </div>
+      <div class="tb-browser-col">
+        <div class="tb-filters">
+          <div class="summon-filter-bar" id="tb-tier-filters">
+            <button class="filter-pill active" data-tier="">Tous</button>
+            ${TIERS.map(t => `<button class="filter-pill" data-tier="${t}">T${t}</button>`).join('')}
+          </div>
+          <div class="summon-filter-bar" id="tb-type-filters">
+            <button class="filter-pill active" data-type="">Tous</button>
+            ${SUMMON_TYPES.map(t => `<button class="filter-pill" data-type="${t}">${_cap(t)}</button>`).join('')}
+          </div>
+          <input class="search-input" id="tb-search" type="search" placeholder="Rechercher…">
+        </div>
+        <div class="card-grid" id="tb-card-grid" style="overflow-y:auto;flex:1;padding:4px 0"></div>
+      </div>
+    </div>
+  `;
+
+  // ── Grid ──────────────────────────────────────────────────────────────────
+
+  const boardArea = container.querySelector('#tb-board-area');
+  const grid = new BoardGrid(boardArea, {
+    rows: 8,
+    onCellTap: handleCellTap,
+    onUnitTap: handleUnitTap,
+    onUnitDrag: handleUnitDrag,
+    onUnitLongPress: (unit) => {
+      if (phase !== 'prep') return;
+      board.removeUnit(unit);
+      grid.refresh();
+    },
+    showEnemySide: true,
+    powerDb: PowerDatabase,
+    archetypeDb: ArchetypeDatabase,
+  });
+  grid.expand(8);
+  grid.setBoard(board);
+  grid.refresh();
+
+  // ── Interaction ───────────────────────────────────────────────────────────
+
+  function handleCellTap(pos) {
+    Tooltip.hide();
+    if (phase !== 'prep' || !selectedCard) return;
+    const side = pos.row <= 3 ? 'player' : 'enemy';
+    if (board.isOccupied(pos)) return;
+    const unit = new Unit(selectedCard, side);
+    board.placeUnit(unit, pos);
+    grid.refresh();
+  }
+
+  function handleUnitTap(unit) {
+    Tooltip.hide();
+    if (phase !== 'prep') return;
+    // Long press handles removal; single tap shows tooltip is handled elsewhere
+  }
+
+  function handleUnitDrag(unit, fromPos, toPos) {
+    if (phase !== 'prep') return;
+    if (toPos.col === fromPos.col && toPos.row === fromPos.row) return;
+    if (board.isOccupied(toPos)) {
+      const other = board.getUnit(toPos);
+      if (other) {
+        board.removeUnit(unit);
+        board.removeUnit(other);
+        board.placeUnit(other, fromPos);
+        board.placeUnit(unit, toPos);
+      }
+    } else {
+      board.moveUnit(unit, toPos);
+    }
+    unit.initial_position = { ...toPos };
+    grid.refresh();
+  }
+
+  // ── Side toggle ───────────────────────────────────────────────────────────
+
+  container.querySelectorAll('.tb-side-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      placingSide = btn.dataset.side;
+      container.querySelectorAll('.tb-side-btn').forEach(b =>
+        b.classList.toggle('active', b === btn));
+    });
+  });
+
+  // ── Filters ───────────────────────────────────────────────────────────────
+
+  container.querySelector('#tb-tier-filters').addEventListener('click', e => {
+    const pill = e.target.closest('.filter-pill');
+    if (!pill) return;
+    tierFilter = pill.dataset.tier;
+    container.querySelectorAll('#tb-tier-filters .filter-pill').forEach(p =>
+      p.classList.toggle('active', p.dataset.tier === tierFilter));
+    renderBrowser();
+  });
+
+  container.querySelector('#tb-type-filters').addEventListener('click', e => {
+    const pill = e.target.closest('.filter-pill');
+    if (!pill) return;
+    typeFilter = pill.dataset.type;
+    container.querySelectorAll('#tb-type-filters .filter-pill').forEach(p =>
+      p.classList.toggle('active', p.dataset.type === typeFilter));
+    renderBrowser();
+  });
+
+  container.querySelector('#tb-search').addEventListener('input', e => {
+    searchQuery = e.target.value;
+    renderBrowser();
+  });
+
+  // ── Card browser ──────────────────────────────────────────────────────────
+
+  function renderBrowser() {
+    const grid_el = container.querySelector('#tb-card-grid');
+    const query = searchQuery.toLowerCase().trim();
+    const all = CardDatabase.getAllCards();
+    const filtered = all.filter(c => {
+      if (tierFilter && String(c.tier) !== tierFilter) return false;
+      if (typeFilter && c.summon_type !== typeFilter) return false;
+      if (query && !c.name.toLowerCase().includes(query)) return false;
+      return true;
+    });
+
+    grid_el.innerHTML = '';
+    for (const c of filtered) {
+      const btn = document.createElement('button');
+      const costHint = _costHint(c);
+      btn.className = 'card-item hand-card' + (selectedCard?.id === c.id ? ' selected' : '');
+      btn.dataset.id = c.id;
+      btn.innerHTML = `
+        <img src="/illustrations/${c.id}" alt="${_esc(c.name)}" loading="lazy" draggable="false">
+        <span class="hand-card-tier badge badge-tier${c.tier}">T${c.tier}</span>
+        <span class="hand-card-name">${_esc(c.name)}</span>
+        ${costHint ? `<span class="hand-card-cost">${costHint}</span>` : ''}
+      `;
+
+      let longPressTimer;
+      btn.addEventListener('pointerdown', () => {
+        longPressTimer = setTimeout(() => {
+          Tooltip.showAtRect(Tooltip.cardHtml(c, PowerDatabase, ArchetypeDatabase, CardDatabase), btn.getBoundingClientRect());
+        }, 500);
+      });
+      btn.addEventListener('pointerup',     () => clearTimeout(longPressTimer));
+      btn.addEventListener('pointercancel', () => clearTimeout(longPressTimer));
+      btn.addEventListener('click', () => {
+        clearTimeout(longPressTimer);
+        Tooltip.hide();
+        selectedCard = selectedCard?.id === c.id ? null : c;
+        renderBrowser();
+      });
+
+      grid_el.appendChild(btn);
+    }
+  }
+
+  // ── Combat ────────────────────────────────────────────────────────────────
+
+  let animator = null;
+
+  container.querySelector('#tb-combat').addEventListener('pointerdown', e => {
+    e.stopPropagation();
+    if (phase === 'prep') startCombat();
+    else stopCombat();
+  });
+
+  container.querySelector('#tb-clear').addEventListener('click', () => {
+    if (phase === 'combat') stopCombat();
+    board.grid = board._emptyGrid();
+    grid.refresh();
+  });
+
+  function startCombat() {
+    const playerUnits = board.getLivingUnitsOnSide('player');
+    const enemyUnits  = board.getLivingUnitsOnSide('enemy');
+    if (playerUnits.length === 0 || enemyUnits.length === 0) return;
+
+    phase = 'combat';
+    container.querySelector('#tb-combat').textContent = '■ Stop';
+    container.querySelector('#tb-clear').disabled = true;
+
+    const archetypeList = ArchetypeDatabase.getAllArchetypes();
+    const archetypeManager = new ArchetypeManager(archetypeList, playerUnits, enemyUnits);
+    archetypeManager.applyStartOfCombat();
+
+    const combat = new CombatManager(board, playerUnits, enemyUnits, archetypeManager);
+
+    grid.enterCombatMode();
+
+    const speedControls = container.querySelector('#tb-speed-controls');
+    speedControls.style.display = '';
+
+    speedControls.querySelectorAll('.speed-btn[data-speed]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        animator?.setSpeed(+btn.dataset.speed);
+        speedControls.querySelectorAll('.speed-btn[data-speed]')
+          .forEach(b => b.classList.toggle('active', b === btn));
+      });
+    });
+
+    const btnPause = container.querySelector('#tb-pause');
+    let isPaused = false;
+    btnPause.onclick = () => {
+      isPaused = !isPaused;
+      if (isPaused) { animator?.pause(); btnPause.textContent = '▶'; btnPause.classList.add('active'); }
+      else          { animator?.resume(); btnPause.textContent = '⏸'; btnPause.classList.remove('active'); }
+    };
+
+    animator = new CombatAnimator(combat, grid.gridEl(), {
+      onStep: () => inspector && renderInspector([...playerUnits, ...enemyUnits]),
+      onFinished: () => {
+        const result = document.createElement('div');
+        result.style.cssText = 'text-align:center;padding:8px;font-weight:700;color:var(--accent)';
+        result.textContent = combat.winner === 'player' ? '🏆 Joueur gagne'
+          : combat.winner === 'enemy' ? '💀 Ennemi gagne' : '⚖ Égalité';
+        container.querySelector('#tb-inspector').prepend(result);
+        setTimeout(() => result.remove(), 3000);
+        stopCombat(true);
+      },
+    });
+    animator.start();
+
+    container.querySelector('#tb-inspector').style.display = inspector ? '' : 'none';
+  }
+
+  function stopCombat(fromFinish = false) {
+    animator?.stop();
+    animator = null;
+    phase = 'prep';
+    container.querySelector('#tb-combat').textContent = '▶ Combat';
+    container.querySelector('#tb-clear').disabled = false;
+    container.querySelector('#tb-speed-controls').style.display = 'none';
+    if (!fromFinish) {
+      grid.exitCombatMode();
+      grid.expand(8);
+      grid.setBoard(board);
+      grid.refresh();
+    } else {
+      grid.exitCombatMode();
+      grid.expand(8);
+      grid.setBoard(board);
+      grid.refresh();
+    }
+  }
+
+  function renderInspector(units) {
+    const el = container.querySelector('#tb-inspector');
+    el.innerHTML = `<div style="font-size:10px;padding:4px 8px;max-height:120px;overflow-y:auto;border-top:1px solid var(--border)">` +
+      units.filter(u => u.isAlive()).map(u =>
+        `<div style="color:${u.side==='player'?'#3b9eff':'var(--red)'}">
+          ${_esc(u.name)} ♥${u.current_hp}/${u.max_hp} ⚔${u.atk}${u.shield?` 🛡${u.shield}`:''}
+        </div>`
+      ).join('') +
+      `</div>`;
+  }
+
+  // ── Inspector toggle ──────────────────────────────────────────────────────
+
+  const btnInspector = document.createElement('button');
+  btnInspector.className = 'filter-pill';
+  btnInspector.textContent = '🔍 Inspector';
+  btnInspector.style.marginLeft = 'auto';
+  btnInspector.addEventListener('click', () => {
+    inspector = !inspector;
+    btnInspector.classList.toggle('active', inspector);
+    container.querySelector('#tb-inspector').style.display = inspector ? '' : 'none';
+  });
+  container.querySelector('#tb-tier-filters').appendChild(btnInspector);
+
+  // ── Back ──────────────────────────────────────────────────────────────────
+
+  container.querySelector('#tb-back').addEventListener('click', () => {
+    if (phase === 'combat') stopCombat();
+    navigate('main_menu');
+  });
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+
+  renderBrowser();
+}
+
+function _costHint(card) {
+  if (card.summon_type === 'sacrifice') {
+    const n = card.cost?.sacrifice ?? 0;
+    return n > 0 ? `×${n}💀` : null;
+  }
+  if (card.summon_type === 'fusion')         return '⚗';
+  if (card.summon_type === 'rituel')         return '🔮';
+  if (card.summon_type === 'transformation') return '🔄';
+  return null;
+}
+
+function _esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function _cap(s) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}

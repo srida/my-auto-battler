@@ -1,13 +1,16 @@
 import { navigate } from '../../main.js';
 import * as CardDatabase from '../../data/CardDatabase.js';
 import * as DeckRepository from '../../data/DeckRepository.js';
+import * as PowerDatabase from '../../data/PowerDatabase.js';
+import * as ArchetypeDatabase from '../../data/ArchetypeDatabase.js';
+import * as Tooltip from '../components/Tooltip.js';
 
 const TIER_COLOR = ['', 'tier1', 'tier2', 'tier3', 'tier4', 'tier5'];
 const SUMMON_TYPES = ['normal', 'sacrifice', 'fusion', 'rituel', 'transformation'];
 const TIER_MIN = 4; // minimum cards per tier to validate the deck
 
 export async function mount(container, params = {}) {
-  await CardDatabase.init();
+  await Promise.all([CardDatabase.init(), PowerDatabase.init(), ArchetypeDatabase.init()]);
 
   // Edit mode: params.deckName has priority, then consumePendingEdit()
   const pendingName = DeckRepository.consumePendingEdit();
@@ -143,29 +146,46 @@ export async function mount(container, params = {}) {
       return;
     }
 
-    cardGrid.innerHTML = filtered.map(c => {
+    cardGrid.innerHTML = '';
+    for (const c of filtered) {
       const count = countInTier[c.id] || 0;
-      return `
-        <button class="card-item${isFull ? ' full' : ''}" data-id="${c.id}"
-          title="${esc(c.name)} — ATK ${c.atk} / HP ${c.hp}">
-          <img src="/illustrations/${c.id}" alt="${esc(c.name)}" loading="lazy">
-          <span class="card-item-name">${esc(c.name)}</span>
-          ${count > 0 ? `<span class="card-count">×${count}</span>` : ''}
-        </button>`;
-    }).join('');
+      const costHint = _costHint(c);
+      const btn = document.createElement('button');
+      btn.className = 'card-item hand-card' + (isFull ? ' full' : '');
+      btn.dataset.id = c.id;
+      btn.innerHTML = `
+        <img src="/illustrations/${c.id}" alt="${esc(c.name)}" loading="lazy" draggable="false">
+        <span class="hand-card-tier badge badge-tier${c.tier}">T${c.tier}</span>
+        <span class="hand-card-name">${esc(c.name)}</span>
+        ${costHint ? `<span class="hand-card-cost">${costHint}</span>` : ''}
+        ${count > 0 ? `<span class="card-count">×${count}</span>` : ''}
+      `;
 
-    // Add card to active tier on click
-    cardGrid.querySelectorAll('.card-item:not(.full)').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const card = CardDatabase.getCard(btn.dataset.id);
-        if (!card) return;
-        if (deckData[activeTier].length >= tierMax[activeTier]) return;
-        deckData[activeTier].push(card);
-        renderTiers();
-        renderBrowser();
-        updateSave();
+      // Long press → tooltip
+      let longPressTimer;
+      btn.addEventListener('pointerdown', e => {
+        longPressTimer = setTimeout(() => {
+          Tooltip.showAtRect(Tooltip.cardHtml(c, PowerDatabase, ArchetypeDatabase, CardDatabase), btn.getBoundingClientRect());
+        }, 500);
       });
-    });
+      btn.addEventListener('pointerup',     () => clearTimeout(longPressTimer));
+      btn.addEventListener('pointercancel', () => clearTimeout(longPressTimer));
+
+      if (!isFull) {
+        btn.addEventListener('click', () => {
+          clearTimeout(longPressTimer);
+          Tooltip.hide();
+          const card = CardDatabase.getCard(btn.dataset.id);
+          if (!card) return;
+          if (deckData[activeTier].length >= tierMax[activeTier]) return;
+          deckData[activeTier].push(card);
+          renderTiers();
+          renderBrowser();
+          updateSave();
+        });
+      }
+      cardGrid.appendChild(btn);
+    }
   }
 
   // ── Save validation ───────────────────────────────────────────────────────
@@ -227,6 +247,17 @@ export async function mount(container, params = {}) {
   renderTiers();
   renderBrowser();
   updateSave();
+}
+
+function _costHint(card) {
+  if (card.summon_type === 'sacrifice') {
+    const n = card.cost?.sacrifice ?? 0;
+    return n > 0 ? `×${n}💀` : null;
+  }
+  if (card.summon_type === 'fusion')         return '⚗';
+  if (card.summon_type === 'rituel')         return '🔮';
+  if (card.summon_type === 'transformation') return '🔄';
+  return null;
 }
 
 function esc(str) {

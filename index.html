@@ -597,6 +597,107 @@
 }
 .end-round-result { font-size: 1.6rem; font-weight: 800; }
 .end-round-hps { display: flex; align-items: center; justify-content: center; gap: 16px; font-size: 20px; font-weight: 700; }
+
+/* ── Mobile: prevent iOS long-press from saving images ── */
+img {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  pointer-events: none;
+}
+/* Re-enable pointer-events on interactive elements that wrap images */
+.hand-card, .card-item, .unit-card, .deck-slot.filled, .graveyard-units .unit-card {
+  pointer-events: auto;
+}
+
+/* ── Mobile: smaller board cells during combat so all 8 rows fit ── */
+@media (max-height: 700px) {
+  .board-grid.combat-mode {
+    max-width: min(100%, calc(55vh * 5 / 8));
+  }
+}
+@media (max-height: 580px) {
+  .board-grid.combat-mode {
+    max-width: min(100%, calc(48vh * 5 / 8));
+  }
+}
+
+/* ── DeckBuilder / TestBench browser: cards use hand-card style ── */
+.card-browser-panel .card-item.hand-card,
+.tb-browser-col .card-item.hand-card {
+  width: auto;
+  height: auto;
+  aspect-ratio: unset;
+  min-height: unset;
+  flex-shrink: 0;
+}
+.card-grid {
+  grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
+}
+
+/* ── TestBench layout ── */
+.tb-layout {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  gap: 0;
+}
+.tb-board-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+.tb-browser-col {
+  width: 200px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+  overflow: hidden;
+  background: var(--surface);
+}
+.tb-filters {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.tb-filters .summon-filter-bar { margin-bottom: 4px; }
+.tb-filters .search-input { margin-bottom: 0; font-size: 12px; }
+.tb-browser-col .card-grid {
+  padding: 6px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
+  grid-template-columns: repeat(2, 1fr);
+}
+.tb-side-toggle {
+  display: flex;
+  gap: 0;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+.tb-side-btn {
+  flex: 1;
+  padding: 6px;
+  background: var(--surface);
+  border: none;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  border-bottom: 2px solid transparent;
+  transition: all var(--transition-fast);
+}
+.tb-side-btn.active { color: var(--accent); border-bottom-color: var(--accent); background: #1c1840; }
+.tb-board-col .board-area { flex: 1; min-height: 0; padding: 4px; overflow: hidden; display: flex; align-items: flex-start; justify-content: center; }
+.tb-board-col .board-grid { max-width: min(100%, calc(85vh * 5 / 8)); }
+
+@media (max-width: 480px) {
+  .tb-browser-col { width: 150px; }
+}
 </style>
 </head>
 <body>

@@ -134,9 +134,10 @@ export function summon(card, pos, board, hand, sacrificeTargets = null) {
     case 'transformation': {
       _removeFromHand(hand, card.id);
       const targetId = card.cost?.materials?.[0];
-      const targetUnit = board.getUnitsOnSide('player').find(u => u.card_id === targetId && u.isAlive());
+      // Prefer the explicitly-passed unit (fixes same-name ambiguity)
+      const targetUnit = sacrificeTargets?.find(u => u.card_id === targetId && u.isAlive())
+        ?? board.getUnitsOnSide('player').find(u => u.card_id === targetId && u.isAlive());
       if (targetUnit) {
-        // Place transformation at the same position as the replaced unit
         pos = { ...targetUnit.position };
         board.removeUnit(targetUnit);
       }

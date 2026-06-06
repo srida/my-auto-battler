@@ -352,13 +352,7 @@ resetCombatStats(), recomputeStats(archetypeManager)
 - [ ] Shield bar masquée si shield = 0
 - [ ] Icônes de statut : empoisonnée / paralysée / pouvoir bloqué
 
-**Panneau d'archetypes**
-- [ ] Afficher le panneau en haut du board dès qu'une unité est présente
-- [ ] Tooltip sur chaque icône d'archetype (palier actif, effet)
-
 **Sélection visuelle des matériaux**
-- [ ] Unités utilisables comme matériaux d'invocation : surlignées en violet
-- [ ] Cases disponibles pour placement : affichées en vert
 - [ ] Clic hors zone de sélection → annuler l'action en cours
 
 **Critère de sortie :** toutes les features du GDD v1.6 sont jouables.

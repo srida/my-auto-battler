@@ -160,6 +160,8 @@ export async function mount(container, params = {}) {
     if (selectedCard && selectedCard.summon_type === 'transformation') {
       const targetId = selectedCard.cost?.materials?.[0];
       if (unit.card_id === targetId && unit.isAlive()) {
+        // Pass the specific unit so InvocationManager uses the right one (fixes same-name ambiguity)
+        selectedMaterials = [unit];
         _tryPlace(selectedCard, pos);
       }
       return;
@@ -577,11 +579,18 @@ export async function mount(container, params = {}) {
       const target = u.initial_position && !board.isOccupied(u.initial_position)
         ? u.initial_position
         : board.firstEmptyPlayerCell();
-      if (target) board.placeUnit(u, target);
+      if (target) {
+        try { board.placeUnit(u, target); } catch (_) { /* occupied by a survivor that moved there */ }
+      }
     }
 
     // Units still neutralized → graveyard for next preparation
     graveyard = playerUnits.filter(u => u.is_neutralized);
+
+    // Reset combat stat bonuses on all surviving player units so they don't stack between rounds
+    for (const u of board.getLivingUnitsOnSide('player')) {
+      u.resetCombatStats();
+    }
 
     // Survivors return to initial_position
     for (const u of board.getLivingUnitsOnSide('player')) {
@@ -667,13 +676,17 @@ export async function mount(container, params = {}) {
 
   container.querySelector('#btn-back').addEventListener('click', () => navigate('main_menu'));
 
-  btnCombat.addEventListener('click', () => {
+  // Use pointerdown (not click) so the event fires reliably on iOS Safari
+  btnCombat.addEventListener('pointerdown', e => {
+    e.stopPropagation();
     if (gameState.phase === Phase.PREPARATION) runCombat();
   });
 
   // Tap outside hand/board/graveyard → deselect everything
+  // Exclude .phase-controls so tapping the combat button doesn't trigger deselect
   container.querySelector('.game-layout').addEventListener('pointerdown', e => {
-    if (e.target.closest('#board-area') || e.target.closest('#hand-area') || e.target.closest('#graveyard-area')) return;
+    if (e.target.closest('#board-area') || e.target.closest('#hand-area') ||
+        e.target.closest('#graveyard-area') || e.target.closest('.phase-controls')) return;
     selectedCard = null;
     selectedBoardPos = null;
     selectedMaterials = [];

@@ -97,6 +97,8 @@ export class Unit {
   applyStatBonus(stat, value) {
     this._stat_bonuses[stat] = (this._stat_bonuses[stat] || 0) + value;
     this._recomputeStats();
+    // For HP bonuses, also increase current_hp so the unit benefits immediately
+    if (stat === 'hp') this.current_hp += value;
   }
 
   // Called by during_combat stat_modifier effects (rage stacks, etc.)
