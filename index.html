@@ -293,6 +293,9 @@
   line-height: 1.5;
   pointer-events: none;
   opacity: 0.9;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 /* Unit card (inside board cell) */
@@ -629,19 +632,25 @@ img {
   }
 }
 
-/* ── DeckBuilder / TestBench browser: cards use hand-card style but are square ── */
-.card-browser-panel .card-item.hand-card,
-.tb-browser-col .card-item.hand-card {
+/* ── DeckBuilder browser: cards use hand-card style but are square ── */
+.card-browser-panel .card-item.hand-card {
   width: 100%;
-  height: auto;
+  height: unset;
   aspect-ratio: 1;
   min-height: unset;
   flex-shrink: 0;
 }
-/* Override the fixed height from hand-card for browser context */
-.card-browser-panel .card-item.hand-card,
+
+/* ── TestBench browser: show full portrait card (not cropped square) ── */
 .tb-browser-col .card-item.hand-card {
-  height: unset;
+  width: 100%;
+  height: auto;
+  aspect-ratio: unset;
+  min-height: unset;
+  flex-shrink: 0;
+}
+.tb-browser-col .card-item.hand-card img {
+  flex: none;
 }
 .card-grid {
   grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
