@@ -242,6 +242,9 @@
   gap: 4px;
   width: 100%;
   max-width: min(100%, calc(50vh * 5 / var(--board-rows, 4)));
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 .board-cell {
   background: var(--surface);
@@ -252,6 +255,10 @@
   overflow: hidden;
   transition: border-color var(--transition-fast), background var(--transition-fast);
   aspect-ratio: 1;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 .board-cell:hover { border-color: var(--muted); }
 .board-cell.highlighted { border-color: var(--accent); background: #1c1840; }
@@ -641,15 +648,23 @@ img {
   flex-shrink: 0;
 }
 
-/* ── TestBench browser: show full portrait card (not cropped square) ── */
-.tb-browser-col .card-item.hand-card {
+/* ── TestBench browser card: portrait, no fixed height ── */
+.tb-browser-card {
   width: 100%;
-  height: auto;
-  aspect-ratio: unset;
-  min-height: unset;
-  flex-shrink: 0;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  transition: border-color var(--transition-fast), transform var(--transition-fast);
 }
-.tb-browser-col .card-item.hand-card img {
+.tb-browser-card.selected {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent);
+}
+.tb-browser-card img {
+  width: 100%;
+  aspect-ratio: 3/4;
+  object-fit: cover;
+  display: block;
   flex: none;
 }
 .card-grid {
