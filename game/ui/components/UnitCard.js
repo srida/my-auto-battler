@@ -10,9 +10,24 @@ export function createUnitEl(unit, { selected = false, materialSelected = false 
   return el;
 }
 
+// Update only the variable parts (HP/power bars) without touching the <img>
 export function updateUnitEl(el, unit) {
-  el.innerHTML = _inner(unit);
   el.classList.toggle('neutralized', unit.is_neutralized);
+
+  const hpPct = Math.round((unit.current_hp / unit.max_hp) * 100);
+  const hpColor = hpPct > 60 ? 'var(--green)' : hpPct > 25 ? '#f59e0b' : 'var(--red)';
+
+  const hpFill = el.querySelector('.unit-hp-fill');
+  if (hpFill) {
+    hpFill.style.width = hpPct + '%';
+    hpFill.style.background = hpColor;
+  }
+
+  if (unit.power_id) {
+    const pwrPct = Math.min(100, Math.round((unit.power_gauge / unit.power_speed) * 100));
+    const pwrFill = el.querySelector('.unit-pwr-fill');
+    if (pwrFill) pwrFill.style.width = pwrPct + '%';
+  }
 }
 
 function _inner(unit) {

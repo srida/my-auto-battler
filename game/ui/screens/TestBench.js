@@ -65,7 +65,7 @@ export async function mount(container) {
           </div>
           <input class="search-input" id="tb-search" type="search" placeholder="Rechercher…">
         </div>
-        <div class="card-grid" id="tb-card-grid" style="overflow-y:auto;flex:1;padding:4px 0"></div>
+        <div class="card-grid" id="tb-card-grid" style="overflow-y:auto;flex:1;min-height:0;padding:4px 6px"></div>
       </div>
     </div>
   `;
@@ -96,8 +96,12 @@ export async function mount(container) {
   function handleCellTap(pos) {
     Tooltip.hide();
     if (phase !== 'prep' || !selectedCard) return;
-    const side = pos.row <= 3 ? 'player' : 'enemy';
+    const isPlayerCell = pos.row <= 3;
+    // Enforce side tab: Joueur → player half only, Ennemi → enemy half only
+    if (placingSide === 'player' && !isPlayerCell) return;
+    if (placingSide === 'enemy'  &&  isPlayerCell) return;
     if (board.isOccupied(pos)) return;
+    const side = isPlayerCell ? 'player' : 'enemy';
     const unit = new Unit(selectedCard, side);
     board.placeUnit(unit, pos);
     grid.refresh();

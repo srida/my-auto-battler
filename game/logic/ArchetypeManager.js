@@ -133,10 +133,18 @@ export class ArchetypeManager {
     const archIds = new Set(this.playerUnits.flatMap(u => u.archetypes));
 
     for (const archId of archIds) {
-      const result2 = this._activeThreshold(archId, this.playerUnits);
-      if (!result2) continue;
-      const { arch, threshold } = result2;
-      if (arch.timing !== 'end_of_combat') continue;
+      const arch = this._archetypeMap[archId];
+      if (!arch || arch.timing !== 'end_of_combat') continue;
+
+      // For end_of_combat, count ALL units that participated (alive + neutralized)
+      // so the threshold is met even if some archetype units died during combat
+      const count = this.playerUnits.filter(u => u.archetypes.includes(archId)).length;
+      let best = null;
+      for (const t of arch.thresholds) {
+        if (count >= t.count) best = t;
+      }
+      if (!best) continue;
+      const threshold = best;
 
       for (const effect of threshold.effects) {
         switch (effect.type) {

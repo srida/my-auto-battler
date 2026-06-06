@@ -22,13 +22,17 @@ export class HandUI {
     return this._selectedIdx !== null ? this._hand[this._selectedIdx] : null;
   }
 
-  // Remove the currently selected card from hand (after placement)
+  // Remove the currently selected card from hand (after placement).
+  // The external `hand` array is already spliced by InvocationManager before this is called.
   removeSelected() {
     if (this._selectedIdx === null) return;
-    this._hand.splice(this._selectedIdx, 1);
+    const elems = Array.from(this._container.querySelectorAll('.hand-card'));
+    if (elems[this._selectedIdx]) elems[this._selectedIdx].remove();
+    // Note: this._hand === external hand (same reference), already spliced
     this._selectedIdx = null;
-    this._render();
     this._onSelect?.(null);
+    // Refresh only dim/selected classes — no img rebuild
+    this._updateSelection();
   }
 
   deselect() {

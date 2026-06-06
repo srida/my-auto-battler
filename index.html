@@ -84,7 +84,7 @@
 
 .tier-slots { display: flex; gap: 4px; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
 .deck-slot {
-  width: 34px; height: 48px;
+  width: 52px; height: 52px;
   border-radius: var(--radius-sm);
   border: 1px dashed var(--border);
   flex-shrink: 0;
@@ -268,11 +268,15 @@
   top: 2px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 13px;
+  font-size: 20px;
   line-height: 1;
   pointer-events: none;
   z-index: 2;
   filter: drop-shadow(0 0 3px rgba(0,0,0,0.9));
+  /* Prevent text selection on long press (mobile) */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 .unit-player .unit-team-diamond { color: #3b9eff; }
 .unit-enemy  .unit-team-diamond { color: var(--red); }
@@ -622,14 +626,19 @@ img {
   }
 }
 
-/* ── DeckBuilder / TestBench browser: cards use hand-card style ── */
+/* ── DeckBuilder / TestBench browser: cards use hand-card style but are square ── */
 .card-browser-panel .card-item.hand-card,
 .tb-browser-col .card-item.hand-card {
-  width: auto;
+  width: 100%;
   height: auto;
-  aspect-ratio: unset;
+  aspect-ratio: 1;
   min-height: unset;
   flex-shrink: 0;
+}
+/* Override the fixed height from hand-card for browser context */
+.card-browser-panel .card-item.hand-card,
+.tb-browser-col .card-item.hand-card {
+  height: unset;
 }
 .card-grid {
   grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
@@ -657,6 +666,7 @@ img {
   border-left: 1px solid var(--border);
   overflow: hidden;
   background: var(--surface);
+  min-height: 0;
 }
 .tb-filters {
   padding: 8px;
@@ -670,6 +680,7 @@ img {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   flex: 1;
+  min-height: 0;
   grid-template-columns: repeat(2, 1fr);
 }
 .tb-side-toggle {

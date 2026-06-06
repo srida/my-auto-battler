@@ -214,7 +214,8 @@ export async function mount(container, params = {}) {
     }
     selectedCard = null;
     selectedMaterials = [];
-    handUI.setHand(hand);
+    // Remove just the placed card element — no full hand rebuild (avoids image flicker)
+    handUI.removeSelected();
     grid.clearHighlight();
     grid.clearMaterialHighlight();
     grid.refresh();
