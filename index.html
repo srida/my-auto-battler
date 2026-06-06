@@ -648,7 +648,7 @@ img {
   flex-shrink: 0;
 }
 
-/* ── TestBench browser card: portrait, no fixed height ── */
+/* ── TestBench browser card: portrait via explicit wrapper ── */
 .tb-browser-card {
   width: 100%;
   user-select: none;
@@ -660,12 +660,19 @@ img {
   border-color: var(--accent);
   outline: 2px solid var(--accent);
 }
-.tb-browser-card img {
+/* Wrapper establishes the 3/4 aspect ratio independently of image load state */
+.tb-card-img-wrap {
   width: 100%;
-  aspect-ratio: 3/4;
+  aspect-ratio: 3 / 4;
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.tb-card-img-wrap img {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
   display: block;
-  flex: none;
 }
 .card-grid {
   grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));

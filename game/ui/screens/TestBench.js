@@ -194,10 +194,12 @@ export async function mount(container) {
       btn.className = 'card-item tb-browser-card' + (isSelected ? ' selected' : '');
       btn.dataset.id = c.id;
       btn.innerHTML = `
-        <img src="/illustrations/${c.id}" alt="${_esc(c.name)}" loading="lazy" draggable="false">
-        <span class="hand-card-tier badge badge-tier${c.tier}">T${c.tier}</span>
+        <div class="tb-card-img-wrap">
+          <img src="/illustrations/${c.id}" alt="${_esc(c.name)}" loading="lazy" draggable="false">
+          <span class="hand-card-tier badge badge-tier${c.tier}">T${c.tier}</span>
+          ${costHint ? `<span class="hand-card-cost">${costHint}</span>` : ''}
+        </div>
         <span class="hand-card-name">${_esc(c.name)}</span>
-        ${costHint ? `<span class="hand-card-cost">${costHint}</span>` : ''}
       `;
       if (isSelected) _selectedBrowserBtn = btn;
 
