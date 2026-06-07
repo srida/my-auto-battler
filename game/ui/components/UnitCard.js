@@ -23,11 +23,11 @@ export function updateUnitEl(el, unit) {
     hpFill.style.background = hpColor;
   }
 
-  if (unit.power_id) {
-    const pwrPct = Math.min(100, Math.round((unit.power_gauge / unit.power_speed) * 100));
-    const pwrFill = el.querySelector('.unit-pwr-fill');
-    if (pwrFill) pwrFill.style.width = pwrPct + '%';
-  }
+  const pwrPct = unit.power_id
+    ? Math.min(100, Math.round((unit.power_gauge / unit.power_speed) * 100))
+    : 0;
+  const pwrFill = el.querySelector('.unit-pwr-fill');
+  if (pwrFill) pwrFill.style.width = pwrPct + '%';
 
   const statusEl = el.querySelector('.unit-status-icons');
   if (statusEl) statusEl.innerHTML = _statusIcons(unit);
@@ -39,14 +39,21 @@ function _inner(unit) {
   const pwrPct = unit.power_id
     ? Math.min(100, Math.round((unit.power_gauge / unit.power_speed) * 100))
     : 0;
+  const stars = '★'.repeat(unit.tier);
+
   return `
-    <img src="/illustrations/${unit.card_id}" alt="${esc(unit.name)}" loading="lazy">
-    <span class="unit-team-diamond">◆</span>
-    <div class="unit-tier-badge badge-tier${unit.tier}">${unit.tier}</div>
+    <img class="unit-art" src="/illustrations/${unit.card_id}" alt="${esc(unit.name)}" loading="lazy">
+    <div class="unit-tier-badge badge-tier${unit.tier}">
+      <span class="unit-tier-num">T${unit.tier}</span>
+      <span class="unit-tier-stars">${stars}</span>
+    </div>
     <div class="unit-status-icons">${_statusIcons(unit)}</div>
-    <div class="unit-hp-bar"><div class="unit-hp-fill" style="width:${hpPct}%;background:${hpColor}"></div></div>
-    ${unit.power_id ? `<div class="unit-pwr-bar"><div class="unit-pwr-fill" style="width:${pwrPct}%"></div></div>` : ''}
-  `;
+    <div class="unit-team-hex"></div>
+    <div class="unit-bars">
+      <div class="unit-pwr-bar"><div class="unit-pwr-fill" style="width:${pwrPct}%"></div></div>
+      <div class="unit-hp-bar"><div class="unit-hp-fill" style="width:${hpPct}%;background:${hpColor}"></div></div>
+    </div>
+  `.trim();
 }
 
 function _statusIcons(unit) {
