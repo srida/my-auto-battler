@@ -607,9 +607,12 @@
 .speed-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
 /* ── Board combat mode ──────────────────────────────────────────── */
-/* Wider max-width: hand is hidden so the board can use more vertical space */
+/* max-width derived from actual available height:
+   100vh - topbar(52) - archetype-panel(44) - speed-controls(56) - board-padding(12) = 164px
+   dvh fallback accounts for mobile browser bar */
 .board-grid.combat-mode {
-  max-width: min(100%, calc(80vh * 5 / 8));
+  max-width: min(100%, calc((100vh - 165px) * 5 / 8));
+  max-width: min(100%, calc((100dvh - 165px) * 5 / 8));
 }
 
 /* End-of-round overlay */
@@ -650,17 +653,6 @@ img {
   pointer-events: auto;
 }
 
-/* ── Mobile: smaller board cells during combat so all 8 rows fit ── */
-@media (max-height: 700px) {
-  .board-grid.combat-mode {
-    max-width: min(100%, calc(55vh * 5 / 8));
-  }
-}
-@media (max-height: 580px) {
-  .board-grid.combat-mode {
-    max-width: min(100%, calc(48vh * 5 / 8));
-  }
-}
 
 /* ── DeckBuilder browser: cards use hand-card style but are square ── */
 .card-browser-panel .card-item.hand-card {
