@@ -21,6 +21,10 @@ export class ArchetypeManager {
 
     // Bonuses applied to each unit at start of combat (for POWER_DEBUFF reapplication)
     this._appliedBonuses = new Map(); // uid → [{ stat, value }]
+
+    // during_combat thresholds locked at start of combat so unit deaths mid-combat
+    // don't deactivate effects that were already unlocked.
+    this._duringCombatThresholds = null; // Map<archId, { player, enemy }> — populated by applyStartOfCombat
   }
 
   // ── Counting ──
@@ -46,6 +50,21 @@ export class ArchetypeManager {
   applyStartOfCombat() {
     this._applyStartForSide(this.playerUnits);
     this._applyStartForSide(this.enemyUnits);
+    this._lockDuringCombatThresholds();
+  }
+
+  // Snapshot which during_combat archetypes are active on each side at combat start.
+  // Once locked, mid-combat unit deaths cannot drop a threshold below its unlock level.
+  _lockDuringCombatThresholds() {
+    this._duringCombatThresholds = new Map();
+    for (const archId of Object.keys(this._archetypeMap)) {
+      const arch = this._archetypeMap[archId];
+      if (arch.timing !== 'during_combat') continue;
+      this._duringCombatThresholds.set(archId, {
+        player: this._activeThreshold(archId, this.playerUnits),
+        enemy:  this._activeThreshold(archId, this.enemyUnits),
+      });
+    }
   }
 
   _applyStartForSide(units) {
@@ -98,11 +117,13 @@ export class ArchetypeManager {
 
   _triggerStatModifiers(trigger, affectedUnits, referenceUnits, events) {
     const archIds = new Set(affectedUnits.flatMap(u => u.archetypes));
+    const isPlayerSide = affectedUnits === this.playerUnits;
+
     for (const archId of archIds) {
-      const result = this._activeThreshold(archId, referenceUnits);
+      const cached = this._duringCombatThresholds?.get(archId);
+      const result = cached ? (isPlayerSide ? cached.player : cached.enemy) : null;
       if (!result) continue;
       const { arch, threshold } = result;
-      if (arch.timing !== 'during_combat') continue;
 
       for (const effect of threshold.effects) {
         if (effect.type !== 'stat_modifier' || effect.trigger !== trigger) continue;

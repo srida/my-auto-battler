@@ -508,7 +508,9 @@ export async function mount(container, params = {}) {
 
     // Guaranteed draws occupy slots within the normal hand (not extra cards)
     const guaranteedDraws = gameState.player_guaranteed_draws.splice(0);
-    const randomCount = Math.max(0, HAND_SIZE + gameState.player_extra_draws - guaranteedDraws.length);
+    const extraDraws = gameState.player_extra_draws;
+    gameState.player_extra_draws = 0; // consumed — re-earned each round from archetypes
+    const randomCount = Math.max(0, HAND_SIZE + extraDraws - guaranteedDraws.length);
     hand = _drawHand(cardsByTier, gameState.round, randomCount);
 
     // Guaranteed draws bypass tier restrictions — search the full deck
