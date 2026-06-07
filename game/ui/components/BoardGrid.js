@@ -146,6 +146,12 @@ export class BoardGrid {
     // Render rows top-to-bottom: high row index at top
     const maxRow = this._displayRows - 1;
     for (let row = maxRow; row >= 0; row--) {
+      // Separator between enemy (rows 4-7) and player (rows 0-3) in 8-row combat view
+      if (this._displayRows === 8 && row === 3) {
+        const sep = document.createElement('div');
+        sep.className = 'combat-separator';
+        this._el.appendChild(sep);
+      }
       for (let col = 0; col < COLS; col++) {
         const cell = document.createElement('div');
         cell.className = 'board-cell';

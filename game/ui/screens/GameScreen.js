@@ -404,6 +404,17 @@ export async function mount(container, params = {}) {
     });
   }
 
+  function _flashArchetypeChips() {
+    const panel = container.querySelector('#archetype-panel');
+    if (!panel) return;
+    panel.querySelectorAll('.archetype-chip.arch-active').forEach(chip => {
+      chip.classList.remove('arch-flash');
+      void chip.offsetWidth;
+      chip.classList.add('arch-flash');
+      chip.addEventListener('animationend', () => chip.classList.remove('arch-flash'), { once: true });
+    });
+  }
+
   function _refreshGraveyard() {
     const graveyardArea    = container.querySelector('#graveyard-area');
     const graveyardUnitsEl = container.querySelector('#graveyard-units');
@@ -567,6 +578,7 @@ export async function mount(container, params = {}) {
     const archetypeList = ArchetypeDatabase.getAllArchetypes();
     const archetypeManager = new ArchetypeManager(archetypeList, playerUnits, enemyUnits);
     archetypeManager.applyStartOfCombat();
+    setTimeout(() => _flashArchetypeChips(), 120);
 
     const combat = new CombatManager(board, playerUnits, enemyUnits, archetypeManager);
 
@@ -582,6 +594,9 @@ export async function mount(container, params = {}) {
     let currentSpeed = 1;
     const animator = new CombatAnimator(combat, grid.gridEl(), {
       onFinished: () => _finishCombat(combat, playerUnits, archetypeManager),
+      onStep: (events) => {
+        if (events.some(e => e.type === 'stat_change')) _flashArchetypeChips();
+      },
     });
 
     const btnPause = speedControls.querySelector('#btn-pause');
@@ -616,6 +631,11 @@ export async function mount(container, params = {}) {
     const playerNeutralized = playerUnits.filter(u => u.is_neutralized);
     const enemyNeutralized  = enemyUnits.filter(u => u.is_neutralized);
     const archetypeResult = archetypeManager.applyEndOfCombat(playerNeutralized, enemyNeutralized);
+    const hasArchEffects = archetypeResult.revived.length > 0
+      || archetypeResult.draw_bonus > 0
+      || archetypeResult.guaranteed_draws.length > 0
+      || archetypeResult.board_slot_bonus > 0;
+    if (hasArchEffects) _flashArchetypeChips();
 
     const winner = combat.winner ?? 'draw';
     const playerSurvivors = playerUnits.filter(u => !u.is_neutralized).length;

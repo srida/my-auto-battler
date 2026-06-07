@@ -2,6 +2,18 @@ import { updateUnitEl } from './UnitCard.js';
 
 const BASE_TICK_MS = 180;
 
+const POWER_NAMES = {
+  POWER_HEAL:         'Soin',
+  POWER_SHIELD:       'Bouclier',
+  POWER_SUPER_ATTACK: 'Super Attaque',
+  POWER_AOE_ATTACK:   'Attaque Zone',
+  POWER_POISON:       'Poison',
+  POWER_PARALYSIS:    'Paralysie',
+  POWER_PUSH:         'Poussée',
+  POWER_DEBUFF:       'Débuff',
+  POWER_BLOCK:        'Blocage',
+};
+
 export class CombatAnimator {
   constructor(combatManager, gridEl, { onFinished, onStep } = {}) {
     this._cm = combatManager;
@@ -154,6 +166,7 @@ export class CombatAnimator {
     if (casterEl) {
       this._flashClass(casterEl, 'anim-power-cast');
       updateUnitEl(casterEl, unit);
+      this._showPowerToast(casterEl, power_id);
     }
     const cls = _powerTargetClass(power_id);
     for (const t of targets) {
@@ -234,6 +247,18 @@ export class CombatAnimator {
         }
       }
     }, dur);
+  }
+
+  _showPowerToast(casterEl, power_id) {
+    const label = POWER_NAMES[power_id] ?? power_id.replace('POWER_', '').replace(/_/g, ' ');
+    const rect = casterEl.getBoundingClientRect();
+    const toast = document.createElement('div');
+    toast.className = 'power-cast-label';
+    toast.textContent = label;
+    toast.style.left = (rect.left + rect.width / 2) + 'px';
+    toast.style.top  = (rect.top - 4) + 'px';
+    document.body.appendChild(toast);
+    toast.addEventListener('animationend', () => toast.remove(), { once: true });
   }
 
   _flashClass(el, cls) {
