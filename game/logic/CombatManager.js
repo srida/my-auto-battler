@@ -222,10 +222,6 @@ export class CombatManager {
 
       case 'POWER_DEBUFF': {
         primaryTarget.resetCombatStats();
-        // After reset, re-apply archetype bonuses that were earned at start of combat
-        if (this.archetypeManager) {
-          this.archetypeManager.reapplyBonuses(primaryTarget);
-        }
         events.push({ type: 'power', unit, targets: [primaryTarget], power_id: pid });
         break;
       }

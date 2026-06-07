@@ -79,6 +79,13 @@ export class CombatAnimator {
     if (!fromCell || !toCell) return;
     const unitEl = fromCell.querySelector(`.unit-card[data-uid="${unit.uid}"]`);
     if (!unitEl) return;
+    this._slideUnitEl(unitEl, fromCell, toCell);
+  }
+
+  // Animate a unit DOM element sliding from one cell to another.
+  // Used by both normal movement and push powers.
+  _slideUnitEl(unitEl, fromCell, toCell) {
+    if (fromCell === toCell) return;
 
     const fr  = fromCell.getBoundingClientRect();
     const tr  = toCell.getBoundingClientRect();
@@ -156,6 +163,14 @@ export class CombatAnimator {
         updateUnitEl(el, t);
       }
       if (t.position) this._flashTargetCell(t.position);
+
+      // POWER_PUSH: the logic layer already moved the unit via board.moveUnit,
+      // but no 'move' event was emitted — relocate the DOM element to match.
+      if (power_id === 'POWER_PUSH' && el && t.position) {
+        const fromCell = el.closest('.board-cell');
+        const toCell   = this._cellEl(t.position);
+        if (fromCell && toCell) this._slideUnitEl(el, fromCell, toCell);
+      }
     }
   }
 

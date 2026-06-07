@@ -77,12 +77,20 @@ export class ArchetypeManager {
 
       for (const effect of threshold.effects) {
         switch (effect.type) {
-          case 'stat_bonus':
+          case 'stat_bonus': {
+            // value_per: scale bonus by the count of enemy units carrying that archetype
+            const otherUnits = units === this.playerUnits ? this.enemyUnits : this.playerUnits;
+            const multiplier = effect.value_per
+              ? otherUnits.filter(u => u.isAlive() && u.archetypes.includes(effect.value_per)).length
+              : 1;
+            const bonus = effect.value * multiplier;
+            if (bonus === 0) break;
             for (const u of units.filter(u => u.isAlive() && u.archetypes.includes(archId))) {
-              u.applyStatBonus(effect.stat, effect.value);
-              this._recordBonus(u, effect.stat, effect.value);
+              u.applyStatBonus(effect.stat, bonus);
+              this._recordBonus(u, effect.stat, bonus);
             }
             break;
+          }
 
           case 'shield':
             // shield value = effect.value * number of active ally units on this side
