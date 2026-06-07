@@ -136,7 +136,7 @@ function _describeEffects(effects, cardDb) {
       case 'stat_bonus':       return `+${e.value} ${_statLabel(e.stat)} à toutes les unités`;
       case 'stat_modifier':    return `+${e.value} ${_statLabel(e.stat)} par neutralisation`;
       case 'draw_bonus':       return `+${e.value} carte${e.value > 1 ? 's' : ''} par tour`;
-      case 'guaranteed_draw':  return `Pioche : ${cardDb?.getCard(e.card_id)?.name ?? e.card_id}`;
+      case 'guaranteed_draw':  return `Pioche garantie${e.category ? ` : 1 carte ${e.category}` : ''}`;
       case 'revive':           return `Réanime une unité (${Math.round((e.hp_ratio ?? .5) * 100)}% PV)`;
       case 'shield':           return `Bouclier +${e.value} PV`;
       case 'board_slot_bonus': return `+${e.value} emplacement${e.value > 1 ? 's' : ''}`;

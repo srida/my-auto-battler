@@ -500,13 +500,13 @@ export async function mount(container, params = {}) {
     btnCombat.textContent = 'Lancer le combat';
     btnCombat.disabled = false;
 
-    // Draw cards from round-specific tier pool (duplicates allowed)
-    const drawCount = HAND_SIZE + gameState.player_extra_draws;
-    hand = _drawHand(cardsByTier, gameState.round, drawCount);
+    // Guaranteed draws occupy slots within the normal hand (not extra cards)
+    const guaranteedDraws = gameState.player_guaranteed_draws.splice(0);
+    const randomCount = Math.max(0, HAND_SIZE + gameState.player_extra_draws - guaranteedDraws.length);
+    hand = _drawHand(cardsByTier, gameState.round, randomCount);
 
-    // Apply guaranteed draws from archetype effects (e.g., Élémentaire: pioche fusion)
-    for (const draw of gameState.player_guaranteed_draws) {
-      const pool = _tiersForRound(gameState.round).flatMap(t => cardsByTier[t] ?? []);
+    const pool = _tiersForRound(gameState.round).flatMap(t => cardsByTier[t] ?? []);
+    for (const draw of guaranteedDraws) {
       const matches = pool.filter(c =>
         (!draw.archetype || c.archetypes?.includes(draw.archetype)) &&
         (!draw.category  || c.summon_type === draw.category)
@@ -514,12 +514,12 @@ export async function mount(container, params = {}) {
       if (matches.length > 0) {
         hand.push(matches[Math.floor(Math.random() * matches.length)]);
       } else {
-        // Fallback: any card matching just the archetype
+        // Fallback: any card matching just the archetype, then any random card
         const fallback = pool.filter(c => !draw.archetype || c.archetypes?.includes(draw.archetype));
         if (fallback.length > 0) hand.push(fallback[Math.floor(Math.random() * fallback.length)]);
+        else if (pool.length > 0) hand.push(pool[Math.floor(Math.random() * pool.length)]);
       }
     }
-    gameState.player_guaranteed_draws = [];
 
     handUI.setHand(hand);
 
