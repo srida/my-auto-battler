@@ -108,18 +108,30 @@ export class EnemyAI {
       return b.max_hp - a.max_hp;                        // higher HP → front within group
     });
 
-    // Enforce the cap — only keep the best maxUnits units after sorting
     const toPlace = sorted.slice(0, maxUnits);
 
-    // Enemy cells front-to-back: row 4 (closest to player) → row 7
-    const cells = [];
-    for (let row = 4; row <= 7; row++)
-      for (let col = 0; col < 5; col++)
-        cells.push({ col, row });
+    const melee  = toPlace.filter(u => u.range <= 1);
+    const ranged = toPlace.filter(u => u.range > 1);
 
-    for (let i = 0; i < toPlace.length; i++) {
-      toPlace[i].initial_position = null; // reset so placeUnit assigns the new cell
-      board.placeUnit(toPlace[i], cells[i]);
+    // Column order: centre-out so units are never bunched at one edge
+    const COL = [2, 1, 3, 0, 4];
+
+    // Assign positions for a group: max 3 per row, then spill into next row.
+    // startRow: row 4 for melee (front), row 6 for ranged (or 5 if no melee).
+    const assign = (group, startRow) =>
+      group.map((u, i) => ({
+        unit: u,
+        pos: { col: COL[i % 5], row: startRow + Math.floor(i / 3) },
+      }));
+
+    const placements = [
+      ...assign(melee, 4),
+      ...assign(ranged, melee.length > 0 ? 6 : 5),
+    ];
+
+    for (const { unit, pos } of placements) {
+      unit.initial_position = null; // reset so placeUnit assigns the new cell
+      board.placeUnit(unit, pos);
     }
   }
 
