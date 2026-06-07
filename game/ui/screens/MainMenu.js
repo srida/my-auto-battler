@@ -11,6 +11,7 @@ export async function mount(container) {
       <div class="main-menu-actions">
         <button class="btn btn-primary btn-full" id="btn-play">Jouer</button>
         <button class="btn btn-secondary btn-full" id="btn-testbench">TestBench (dev)</button>
+        <a href="/admin" class="main-menu-admin-link">Administration</a>
       </div>
     </div>
   `;
