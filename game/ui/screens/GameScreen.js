@@ -528,9 +528,10 @@ export async function mount(container, params = {}) {
 
     handUI.setHand(hand);
 
-    // Enemy draws and places its units (they appear hidden on the board)
+    // Enemy draws and fills empty slots (survivors from previous rounds stay on board)
     enemyAI.drawHand(gameState.round);
-    enemyUnits = enemyAI.placeFromHand(board, gameState.enemy_board_slots);
+    const newEnemyUnits = enemyAI.placeFromHand(board, gameState.enemy_board_slots);
+    enemyUnits = [...enemyUnits, ...newEnemyUnits];
     enemyHand  = enemyAI.getHand();
 
     selectedCard = null;
@@ -615,10 +616,27 @@ export async function mount(container, params = {}) {
     const enemySurvivors  = enemyUnits.filter(u => !u.is_neutralized).length;
     gameState.applyEndOfCombat(winner, playerSurvivors, enemySurvivors, archetypeResult);
 
-    // Reset board: remove all enemy units
-    for (const u of enemyUnits) board.removeUnit(u);
-    enemyUnits = [];
+    // Remove dead enemy units; surviving ones stay on board
+    for (const u of enemyUnits) {
+      if (u.is_neutralized) board.removeUnit(u);
+    }
+    enemyUnits = enemyUnits.filter(u => !u.is_neutralized);
     enemyHand  = [];
+
+    // Reset combat stat bonuses on surviving enemy units (prevents stacking across rounds)
+    for (const u of enemyUnits) u.resetCombatStats();
+
+    // Enemy survivors return to their initial_position
+    for (const u of enemyUnits) {
+      if (!u.initial_position) continue;
+      const init = u.initial_position;
+      if (!board.isOccupied(init) || board.getUnit(init) === u) {
+        if (board.getUnit(u.position) === u &&
+            (u.position.col !== init.col || u.position.row !== init.row)) {
+          board.moveUnit(u, init);
+        }
+      }
+    }
 
     // Remove neutralized player units from the board
     for (const u of playerUnits) {
