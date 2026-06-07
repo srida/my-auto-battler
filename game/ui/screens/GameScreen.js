@@ -531,9 +531,9 @@ export async function mount(container, params = {}) {
 
     // Enemy draws and fills empty slots (survivors stay, graveyard available as material)
     enemyAI.drawHand(gameState.round);
-    const newEnemyUnits = enemyAI.placeFromHand(board, gameState.enemy_board_slots, enemyGraveyard);
-    enemyUnits = [...enemyUnits, ...newEnemyUnits];
-    enemyAI.rearrangeUnits(board);
+    enemyAI.placeFromHand(board, gameState.enemy_board_slots, enemyGraveyard);
+    enemyAI.rearrangeUnits(board, gameState.enemy_board_slots);
+    enemyUnits = board.getLivingUnitsOnSide('enemy'); // board is the source of truth
     enemyHand  = enemyAI.getHand();
 
     selectedCard = null;

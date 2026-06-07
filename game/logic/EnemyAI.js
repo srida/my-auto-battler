@@ -92,12 +92,14 @@ export class EnemyAI {
    *   - Low range (melee/tanks) → front rows (4–5, closest to player)
    *   - High range (ranged)     → back rows (6–7)
    *   Within each group, highest HP goes furthest forward.
+   * Enforces maxUnits cap (excess units are dropped).
    * Updates initial_position so units return here after combat.
    * @param {Board} board
+   * @param {number} maxUnits
    */
-  rearrangeUnits(board) {
+  rearrangeUnits(board, maxUnits = 5) {
     const units = board.getLivingUnitsOnSide('enemy');
-    if (units.length <= 1) return;
+    if (units.length === 0) return;
 
     for (const u of units) board.removeUnit(u);
 
@@ -106,15 +108,18 @@ export class EnemyAI {
       return b.max_hp - a.max_hp;                        // higher HP → front within group
     });
 
+    // Enforce the cap — only keep the best maxUnits units after sorting
+    const toPlace = sorted.slice(0, maxUnits);
+
     // Enemy cells front-to-back: row 4 (closest to player) → row 7
     const cells = [];
     for (let row = 4; row <= 7; row++)
       for (let col = 0; col < 5; col++)
         cells.push({ col, row });
 
-    for (let i = 0; i < sorted.length; i++) {
-      sorted[i].initial_position = null; // reset so placeUnit assigns the new cell
-      board.placeUnit(sorted[i], cells[i]);
+    for (let i = 0; i < toPlace.length; i++) {
+      toPlace[i].initial_position = null; // reset so placeUnit assigns the new cell
+      board.placeUnit(toPlace[i], cells[i]);
     }
   }
 
