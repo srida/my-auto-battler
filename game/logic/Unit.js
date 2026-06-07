@@ -111,13 +111,15 @@ export class Unit {
     }
   }
 
-  // Called by POWER_DEBUFF — strip all bonuses and status effects
+  // Called by POWER_DEBUFF and at end of combat — strip all bonuses and status effects
   resetCombatStats() {
     this._stat_bonuses = {};
+    this.power_gauge = 0;
     this.attack_speed_modifier = 0;
     this.paralysis_remaining = 0;
     this.is_power_blocked = false;
     this.power_block_remaining = 0;
+    this.dot_effects = [];
     this._recomputeStats();
     this.current_hp = Math.min(this.current_hp, this.max_hp);
   }

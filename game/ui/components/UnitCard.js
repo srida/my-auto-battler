@@ -10,7 +10,7 @@ export function createUnitEl(unit, { selected = false, materialSelected = false 
   return el;
 }
 
-// Update only the variable parts (HP/power bars) without touching the <img>
+// Update only the variable parts (HP/power bars, status icons) without touching the <img>
 export function updateUnitEl(el, unit) {
   el.classList.toggle('neutralized', unit.is_neutralized);
 
@@ -28,6 +28,9 @@ export function updateUnitEl(el, unit) {
     const pwrFill = el.querySelector('.unit-pwr-fill');
     if (pwrFill) pwrFill.style.width = pwrPct + '%';
   }
+
+  const statusEl = el.querySelector('.unit-status-icons');
+  if (statusEl) statusEl.innerHTML = _statusIcons(unit);
 }
 
 function _inner(unit) {
@@ -40,9 +43,23 @@ function _inner(unit) {
     <img src="/illustrations/${unit.card_id}" alt="${esc(unit.name)}" loading="lazy">
     <span class="unit-team-diamond">◆</span>
     <div class="unit-tier-badge badge-tier${unit.tier}">${unit.tier}</div>
+    <div class="unit-status-icons">${_statusIcons(unit)}</div>
     <div class="unit-hp-bar"><div class="unit-hp-fill" style="width:${hpPct}%;background:${hpColor}"></div></div>
     ${unit.power_id ? `<div class="unit-pwr-bar"><div class="unit-pwr-fill" style="width:${pwrPct}%"></div></div>` : ''}
   `;
+}
+
+function _statusIcons(unit) {
+  let html = '';
+  if ((unit.shield ?? 0) > 0)
+    html += `<span class="status-icon si-shield">🛡 ${unit.shield}</span>`;
+  if (unit.dot_effects?.length > 0)
+    html += `<span class="status-icon si-poison">☠</span>`;
+  if ((unit.paralysis_remaining ?? 0) > 0)
+    html += `<span class="status-icon si-paralysis">⚡</span>`;
+  if (unit.is_power_blocked)
+    html += `<span class="status-icon si-block">🔇</span>`;
+  return html;
 }
 
 function esc(s) {
