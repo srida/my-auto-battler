@@ -366,6 +366,32 @@
   transition: width 200ms ease;
 }
 
+/* Status icons — overlaid top-right of the unit card */
+.unit-status-icons {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-end;
+  pointer-events: none;
+  z-index: 2;
+}
+.status-icon {
+  font-size: 9px;
+  line-height: 1;
+  padding: 1px 3px;
+  border-radius: 3px;
+  white-space: nowrap;
+  background: rgba(0, 0, 0, 0.70);
+  color: #fff;
+}
+.si-shield    { background: rgba(30, 100, 220, 0.85); }
+.si-poison    { background: rgba(40, 160, 60,  0.85); }
+.si-paralysis { background: rgba(220, 170, 0,  0.85); color: #000; }
+.si-block     { background: rgba(180, 40,  40,  0.85); }
+
 /* Hand */
 .hand-ui-wrap {
   height: var(--hand-height);
