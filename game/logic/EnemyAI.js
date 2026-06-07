@@ -87,6 +87,37 @@ export class EnemyAI {
     return this._hand;
   }
 
+  /**
+   * Rearrange all living enemy units on the board by role:
+   *   - Low range (melee/tanks) → front rows (4–5, closest to player)
+   *   - High range (ranged)     → back rows (6–7)
+   *   Within each group, highest HP goes furthest forward.
+   * Updates initial_position so units return here after combat.
+   * @param {Board} board
+   */
+  rearrangeUnits(board) {
+    const units = board.getLivingUnitsOnSide('enemy');
+    if (units.length <= 1) return;
+
+    for (const u of units) board.removeUnit(u);
+
+    const sorted = [...units].sort((a, b) => {
+      if (a.range !== b.range) return a.range - b.range; // lower range → front
+      return b.max_hp - a.max_hp;                        // higher HP → front within group
+    });
+
+    // Enemy cells front-to-back: row 4 (closest to player) → row 7
+    const cells = [];
+    for (let row = 4; row <= 7; row++)
+      for (let col = 0; col < 5; col++)
+        cells.push({ col, row });
+
+    for (let i = 0; i < sorted.length; i++) {
+      sorted[i].initial_position = null; // reset so placeUnit assigns the new cell
+      board.placeUnit(sorted[i], cells[i]);
+    }
+  }
+
   /** Damage multiplier formula (symmetric with player). */
   computeMultiplier(handSize) {
     return 1.0 + handSize / 10.0;

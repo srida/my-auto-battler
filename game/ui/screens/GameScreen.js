@@ -533,6 +533,7 @@ export async function mount(container, params = {}) {
     enemyAI.drawHand(gameState.round);
     const newEnemyUnits = enemyAI.placeFromHand(board, gameState.enemy_board_slots, enemyGraveyard);
     enemyUnits = [...enemyUnits, ...newEnemyUnits];
+    enemyAI.rearrangeUnits(board);
     enemyHand  = enemyAI.getHand();
 
     selectedCard = null;
