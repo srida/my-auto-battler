@@ -6,7 +6,8 @@ const HAND_SIZE = 5;
  * EnemyAI
  * Draws from the enemy deck each round and places units on rows 4–7
  * using the same summon rules as the player (normal, sacrifice, fusion,
- * ritual, transformation).
+ * ritual, transformation). Graveyard units (neutralized last combat) are
+ * available as materials during the preparation phase.
  */
 export class EnemyAI {
   /**
@@ -45,14 +46,16 @@ export class EnemyAI {
 
   /**
    * Place cards from the hand on enemy cells, respecting all summon rules.
-   * Uses multi-pass: normal cards are placed first so they are available
-   * as materials for fusion / ritual / transformation in later passes.
-   * Unplaceable cards remain in the hand (used for multiplier).
+   * Uses multi-pass: normal cards first so they are available as materials
+   * for fusion / ritual / transformation in later passes.
+   * Graveyard units (neutralized last round, already off-board) are consumed
+   * in-place when used as material.
    * @param {Board} board
    * @param {number} maxUnits
+   * @param {Unit[]} graveyard - mutated: consumed units are spliced out
    * @returns {Unit[]} placed units
    */
-  placeFromHand(board, maxUnits = 5) {
+  placeFromHand(board, maxUnits = 5, graveyard = []) {
     let unplaced = [...this._hand];
     const placed = [];
 
@@ -60,14 +63,13 @@ export class EnemyAI {
       const before = placed.length;
       const remaining = [];
 
-      // Sort each pass: normal first, then transformation, fusion, ritual, sacrifice.
-      // This ensures materials/targets are on board before they are needed.
+      // Sort each pass: normal cards first so they are on board as materials.
       const sorted = [...unplaced].sort(
         (a, b) => _summonPriority(a) - _summonPriority(b)
       );
 
       for (const card of sorted) {
-        const unit = _tryPlace(card, board, maxUnits);
+        const unit = _tryPlace(card, board, maxUnits, graveyard);
         if (unit) placed.push(unit);
         else remaining.push(card);
       }
@@ -95,9 +97,10 @@ export class EnemyAI {
 
 /**
  * Try to place a single card on the enemy board.
- * Returns the Unit on success, null if the summon conditions are not met.
+ * graveyard is mutated in-place when units are consumed as materials.
+ * Returns the placed Unit on success, null otherwise.
  */
-function _tryPlace(card, board, maxUnits) {
+function _tryPlace(card, board, maxUnits, graveyard) {
   const onBoard = board.getLivingUnitsOnSide('enemy').length;
 
   switch (card.summon_type) {
@@ -113,7 +116,6 @@ function _tryPlace(card, board, maxUnits) {
     case 'sacrifice': {
       const needed = card.cost?.sacrifice ?? 0;
       if (needed === 0) {
-        // No cost — treat as normal
         if (onBoard >= maxUnits) return null;
         const cells = _freeCells(board);
         if (cells.length === 0) return null;
@@ -121,10 +123,15 @@ function _tryPlace(card, board, maxUnits) {
         board.placeUnit(unit, cells[0]);
         return unit;
       }
-      if (onBoard < needed) return null;
-      // Sacrifice the first N living enemy units, then place
-      const toSacrifice = board.getLivingUnitsOnSide('enemy').slice(0, needed);
-      for (const u of toSacrifice) board.removeUnit(u);
+      const boardUnits = board.getLivingUnitsOnSide('enemy');
+      if (boardUnits.length + graveyard.length < needed) return null;
+      // Consume graveyard first (already off-board), then sacrifice live units
+      const fromGraveCount = Math.min(needed, graveyard.length);
+      const fromBoardCount = needed - fromGraveCount;
+      // Net board change: -fromBoardCount + 1
+      if (onBoard - fromBoardCount + 1 > maxUnits) return null;
+      graveyard.splice(0, fromGraveCount);
+      for (const u of boardUnits.slice(0, fromBoardCount)) board.removeUnit(u);
       const unit = new Unit(card, 'enemy');
       board.placeUnit(unit, _freeCells(board)[0]);
       return unit;
@@ -140,16 +147,33 @@ function _tryPlace(card, board, maxUnits) {
         board.placeUnit(unit, cells[0]);
         return unit;
       }
-      // Find all required material units on the enemy board
-      const pool = [...board.getLivingUnitsOnSide('enemy')];
-      const matUnits = [];
+      // Find each required material on board first, then in graveyard
+      const boardPool = [...board.getLivingUnitsOnSide('enemy')];
+      const gravePool = [...graveyard];
+      const usedBoard = [];
+      const usedGrave = [];
       for (const matId of materials) {
-        const idx = pool.findIndex(u => u.card_id === matId);
-        if (idx === -1) return null; // missing material
-        matUnits.push(pool[idx]);
-        pool.splice(idx, 1); // don't reuse the same unit
+        let idx = boardPool.findIndex(u => u.card_id === matId);
+        if (idx !== -1) {
+          usedBoard.push(boardPool[idx]);
+          boardPool.splice(idx, 1);
+        } else {
+          idx = gravePool.findIndex(u => u.card_id === matId);
+          if (idx !== -1) {
+            usedGrave.push(gravePool[idx]);
+            gravePool.splice(idx, 1);
+          } else {
+            return null; // missing material
+          }
+        }
       }
-      for (const u of matUnits) board.removeUnit(u);
+      // Net board change: -usedBoard.length + 1
+      if (onBoard - usedBoard.length + 1 > maxUnits) return null;
+      for (const u of usedBoard) board.removeUnit(u);
+      for (const u of usedGrave) {
+        const gi = graveyard.indexOf(u);
+        if (gi !== -1) graveyard.splice(gi, 1);
+      }
       const unit = new Unit(card, 'enemy');
       board.placeUnit(unit, _freeCells(board)[0]);
       return unit;
@@ -166,19 +190,48 @@ function _tryPlace(card, board, maxUnits) {
         board.placeUnit(unit, cells[0]);
         return unit;
       }
-      const enemyUnits = board.getLivingUnitsOnSide('enemy');
-      if (enemyUnits.length < sacrifice) return null;
-      // Satisfy material constraints first, then fill remaining sacrifice slots
-      const pool = [...enemyUnits];
-      const toConsume = [];
+      const boardPool = [...board.getLivingUnitsOnSide('enemy')];
+      const gravePool = [...graveyard];
+      if (boardPool.length + gravePool.length < sacrifice) return null;
+
+      const toConsumeBoard = [];
+      const toConsumeGrave = [];
+
+      // Satisfy explicit material constraints first (board priority, then graveyard)
       for (const matId of required) {
-        const idx = pool.findIndex(u => _matchesMaterial(u, matId));
-        if (idx === -1) return null; // constraint unsatisfiable
-        toConsume.push(pool[idx]);
-        pool.splice(idx, 1);
+        let idx = boardPool.findIndex(u => _matchesMaterial(u, matId));
+        if (idx !== -1) {
+          toConsumeBoard.push(boardPool[idx]);
+          boardPool.splice(idx, 1);
+        } else {
+          idx = gravePool.findIndex(u => _matchesMaterial(u, matId));
+          if (idx !== -1) {
+            toConsumeGrave.push(gravePool[idx]);
+            gravePool.splice(idx, 1);
+          } else {
+            return null; // constraint unsatisfiable
+          }
+        }
       }
-      for (const u of pool.slice(0, sacrifice - toConsume.length)) toConsume.push(u);
-      for (const u of toConsume) board.removeUnit(u);
+
+      // Fill remaining sacrifice slots — prefer graveyard over board
+      let stillNeeded = sacrifice - toConsumeBoard.length - toConsumeGrave.length;
+      for (const u of gravePool.slice(0, stillNeeded)) {
+        toConsumeGrave.push(u);
+        stillNeeded--;
+      }
+      for (const u of boardPool.slice(0, stillNeeded)) {
+        toConsumeBoard.push(u);
+      }
+
+      // Net board change: -toConsumeBoard.length + 1
+      if (onBoard - toConsumeBoard.length + 1 > maxUnits) return null;
+
+      for (const u of toConsumeBoard) board.removeUnit(u);
+      for (const u of toConsumeGrave) {
+        const gi = graveyard.indexOf(u);
+        if (gi !== -1) graveyard.splice(gi, 1);
+      }
       const unit = new Unit(card, 'enemy');
       board.placeUnit(unit, _freeCells(board)[0]);
       return unit;
@@ -187,13 +240,30 @@ function _tryPlace(card, board, maxUnits) {
     case 'transformation': {
       const targetId = card.cost?.materials?.[0];
       if (!targetId) return null;
+
+      // Board target: 1-for-1, no slot limit check
       const target = board.getLivingUnitsOnSide('enemy').find(u => u.card_id === targetId);
-      if (!target) return null;
-      const pos = { ...target.position };
-      board.removeUnit(target);
-      const unit = new Unit(card, 'enemy');
-      board.placeUnit(unit, pos);
-      return unit;
+      if (target) {
+        const pos = { ...target.position };
+        board.removeUnit(target);
+        const unit = new Unit(card, 'enemy');
+        board.placeUnit(unit, pos);
+        return unit;
+      }
+
+      // Graveyard target: net +1 on board, need a free slot
+      const graveIdx = graveyard.findIndex(u => u.card_id === targetId);
+      if (graveIdx !== -1) {
+        if (onBoard >= maxUnits) return null;
+        const cells = _freeCells(board);
+        if (cells.length === 0) return null;
+        graveyard.splice(graveIdx, 1);
+        const unit = new Unit(card, 'enemy');
+        board.placeUnit(unit, cells[0]);
+        return unit;
+      }
+
+      return null;
     }
 
     default:

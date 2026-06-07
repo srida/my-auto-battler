@@ -40,8 +40,9 @@ export async function mount(container, params = {}) {
   const enemyAI = new EnemyAI(rawEnemyDeck, CardDatabase);
   let hand = [];
   let graveyard = [];
-  let enemyUnits = [];
-  let enemyHand  = [];
+  let enemyUnits    = [];
+  let enemyHand     = [];
+  let enemyGraveyard = [];
   let _graveyardElMap = new Map(); // uid → DOM element (smart diff to avoid img rebuilds)
   let selectedCard = null;
   let selectedBoardPos = null;
@@ -528,9 +529,9 @@ export async function mount(container, params = {}) {
 
     handUI.setHand(hand);
 
-    // Enemy draws and fills empty slots (survivors from previous rounds stay on board)
+    // Enemy draws and fills empty slots (survivors stay, graveyard available as material)
     enemyAI.drawHand(gameState.round);
-    const newEnemyUnits = enemyAI.placeFromHand(board, gameState.enemy_board_slots);
+    const newEnemyUnits = enemyAI.placeFromHand(board, gameState.enemy_board_slots, enemyGraveyard);
     enemyUnits = [...enemyUnits, ...newEnemyUnits];
     enemyHand  = enemyAI.getHand();
 
@@ -549,6 +550,7 @@ export async function mount(container, params = {}) {
 
   function runCombat() {
     graveyard = [];
+    enemyGraveyard = [];
     btnCombat.disabled = true;
     phaseLabel.textContent = `Combat — Tour ${gameState.round}`;
     phaseLabel.style.color = '';
@@ -620,6 +622,7 @@ export async function mount(container, params = {}) {
     for (const u of enemyUnits) {
       if (u.is_neutralized) board.removeUnit(u);
     }
+    enemyGraveyard = enemyUnits.filter(u => u.is_neutralized);
     enemyUnits = enemyUnits.filter(u => !u.is_neutralized);
     enemyHand  = [];
 
