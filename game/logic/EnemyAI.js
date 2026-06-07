@@ -1,11 +1,10 @@
 import { Unit } from './Unit.js';
 
-const DEFAULT_HAND_SIZE = 3;
+const HAND_SIZE = 5;
 
 /**
  * EnemyAI
- * Places enemy units on rows 4–7 and computes the damage multiplier.
- * The AI always uses the same deck across 5 rounds.
+ * Draws cards from the enemy deck each round and places them on rows 4–7.
  */
 export class EnemyAI {
   /**
@@ -15,71 +14,88 @@ export class EnemyAI {
   constructor(deck, cardDb) {
     this._deck = deck;
     this._cardDb = cardDb;
+    this._hand = [];
   }
 
   /**
-   * Select the hand the AI "keeps" (for multiplier calculation).
-   * The AI keeps a fixed number of normal/sacrifice cards.
-   * Returns an array of card objects.
+   * Draw HAND_SIZE cards from the deck for the given round's eligible tiers.
+   * Stores them internally; call placeFromHand() to place them on the board.
+   * @param {number} round
+   * @returns {Object[]} drawn cards
    */
-  selectHand() {
-    const hand = [];
-    for (let tier = 1; tier <= 5 && hand.length < DEFAULT_HAND_SIZE; tier++) {
-      const ids = this._deck[String(tier)] ?? [];
-      for (const id of ids) {
-        if (hand.length >= DEFAULT_HAND_SIZE) break;
+  drawHand(round) {
+    const tiers = _tiersForRound(round);
+    const pool = [];
+    for (const t of tiers) {
+      for (const id of (this._deck[String(t)] ?? [])) {
         const card = this._cardDb.getCard(id);
-        // Prefer to keep cards that don't need board conditions to summon
-        if (card && ['normal', 'sacrifice'].includes(card.summon_type)) hand.push(card);
+        if (card) pool.push(card);
       }
     }
-    return hand;
+    if (pool.length === 0) { this._hand = []; return []; }
+    const hand = [];
+    for (let i = 0; i < HAND_SIZE; i++) {
+      hand.push(pool[Math.floor(Math.random() * pool.length)]);
+    }
+    this._hand = hand;
+    return [...hand];
   }
 
   /**
-   * Place units on the enemy side (rows 4–7) of the board.
-   * Uses cards from the deck, placing them left-to-right, row 4 first.
-   * Normal cards are placed directly; special summon types are ignored for AI.
+   * Place normal/sacrifice cards from the hand onto free enemy cells.
+   * Unplaceable cards (fusion, ritual, transformation) remain in hand.
    * @param {Board} board
-   * @param {number} maxUnits - board slot count for the enemy
+   * @param {number} maxUnits - max units allowed on enemy side
    * @returns {Unit[]} placed units
    */
-  placeUnits(board, maxUnits = 8) {
-    const units = [];
-    const cells = this._enemyCells();
+  placeFromHand(board, maxUnits = 5) {
+    const placed = [];
+    const remaining = [];
+    const cells = this._freeEnemyCells(board);
+    let cellIdx = 0;
 
-    for (let tier = 1; tier <= 5; tier++) {
-      const ids = this._deck[String(tier)] ?? [];
-      for (const id of ids) {
-        if (units.length >= maxUnits || units.length >= cells.length) break;
-        const card = this._cardDb.getCard(id);
-        if (!card) continue;
-        // AI places all cards directly (no summon cost validation)
-        const pos = cells[units.length];
-        const unit = new Unit(card, 'enemy');
-        board.placeUnit(unit, pos);
-        units.push(unit);
+    for (const card of this._hand) {
+      const onBoard = board.getLivingUnitsOnSide('enemy').length + placed.length;
+      if (onBoard >= maxUnits || cellIdx >= cells.length) {
+        remaining.push(card);
+        continue;
       }
-      if (units.length >= maxUnits) break;
+      if (['normal', 'sacrifice'].includes(card.summon_type)) {
+        const unit = new Unit(card, 'enemy');
+        board.placeUnit(unit, cells[cellIdx++]);
+        placed.push(unit);
+      } else {
+        remaining.push(card);
+      }
     }
-
-    return units;
+    this._hand = remaining;
+    return placed;
   }
 
-  /**
-   * Damage multiplier formula (symmetric with player).
-   * multiplier = 1.0 + hand_size / 10.0
-   */
+  /** Cards not placed — used for damage multiplier calculation. */
+  getHand() {
+    return this._hand;
+  }
+
+  /** Damage multiplier formula (symmetric with player). */
   computeMultiplier(handSize) {
     return 1.0 + handSize / 10.0;
   }
 
-  // Generate enemy cell positions row by row (rows 4–7, left to right)
-  _enemyCells() {
+  _freeEnemyCells(board) {
     const cells = [];
     for (let row = 4; row <= 7; row++)
-      for (let col = 0; col < 5; col++)
-        cells.push({ col, row });
+      for (let col = 0; col < 5; col++) {
+        if (!board.isOccupied({ col, row })) cells.push({ col, row });
+      }
     return cells;
   }
+}
+
+function _tiersForRound(round) {
+  if (round <= 1) return [1];
+  if (round === 2) return [1, 2];
+  if (round === 3) return [1, 2, 3];
+  if (round === 4) return [2, 3, 4];
+  return [3, 4, 5];
 }
