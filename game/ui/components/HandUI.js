@@ -10,11 +10,13 @@ export class HandUI {
     this._isPlayable = isPlayable;
     this._hand = [];
     this._selectedIdx = null;
+    this._selectedEl  = null; // direct element reference — immune to DOM index shifts after removals
   }
 
   setHand(cards) {
     this._hand = cards;
     this._selectedIdx = null;
+    this._selectedEl  = null;
     this._render();
   }
 
@@ -28,10 +30,11 @@ export class HandUI {
   // The external `hand` array is already spliced by InvocationManager before this is called.
   removeSelected() {
     if (this._selectedIdx === null) return;
-    const elems = Array.from(this._container.querySelectorAll('.hand-card'));
-    if (elems[this._selectedIdx]) elems[this._selectedIdx].remove();
-    // Note: this._hand === external hand (same reference), already spliced
+    // Remove by stored element reference — DOM indices shift after each removal so
+    // elems[this._selectedIdx] would point to the wrong element on 2nd+ plays.
+    if (this._selectedEl) this._selectedEl.remove();
     this._selectedIdx = null;
+    this._selectedEl  = null;
     this._onSelect?.(null);
     // Refresh only dim/selected classes — no img rebuild
     this._updateSelection();
@@ -39,6 +42,7 @@ export class HandUI {
 
   deselect() {
     this._selectedIdx = null;
+    this._selectedEl  = null;
     this._updateSelection();
     this._onSelect?.(null);
   }
@@ -80,11 +84,16 @@ export class HandUI {
         longPressTimer = setTimeout(() => {
           Tooltip.showAtRect(Tooltip.cardHtml(card, this._powerDb, this._archetypeDb, this._cardDb), rect);
         }, 500);
-        if (this._selectedIdx === idx) {
+        // Compute CURRENT DOM position — the render-time `idx` becomes stale after
+        // removeSelected() shifts remaining elements without a full re-render.
+        const currentIdx = Array.from(this._container.querySelectorAll('.hand-card')).indexOf(el);
+        if (this._selectedIdx === currentIdx) {
           this._selectedIdx = null;
+          this._selectedEl  = null;
           this._onSelect?.(null);
         } else {
-          this._selectedIdx = idx;
+          this._selectedIdx = currentIdx;
+          this._selectedEl  = el;
           this._onSelect?.(card);
         }
         // Update classes only — do NOT call _render() which would detach el
