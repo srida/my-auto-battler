@@ -93,14 +93,21 @@ export class CombatManager {
 
       const enemies = this._enemies(u).filter(e => e.isAlive());
       if (enemies.length === 0) continue;
-      const { unit: target } = findClosestEnemy(u, enemies);
-      if (isInAttackRange(u, target)) continue; // already in attack range, no need to move
 
-      const next = stepToward(this.board, u.position, target.position);
-      if (next && !this.board.isOccupied(next)) {
-        const from = { ...u.position };
-        this.board.moveUnit(u, next);
-        events.push({ type: 'move', unit: u, from, to: { ...u.position } });
+      // Try enemies closest-first; if primary target is blocked, fall back to next reachable one
+      const sorted = [...enemies].sort(
+        (a, b) => chebyshevDistance(u.position, a.position) - chebyshevDistance(u.position, b.position)
+      );
+      for (const target of sorted) {
+        if (isInAttackRange(u, target)) break; // already in range — no move needed
+        const next = stepToward(this.board, u.position, target.position);
+        if (next && !this.board.isOccupied(next)) {
+          const from = { ...u.position };
+          this.board.moveUnit(u, next);
+          events.push({ type: 'move', unit: u, from, to: { ...u.position } });
+          break;
+        }
+        // path blocked for this target → try next closest
       }
     }
 
