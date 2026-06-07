@@ -17,10 +17,11 @@ export async function mount(container, params = {}) {
   const editName    = params.deckName || pendingName || null;
 
   // State
-  let deckName    = editName || '';
-  let activeTier  = 1;
-  let searchQuery = '';
-  let summonFilter = '';
+  let deckName       = editName || '';
+  let activeTier     = 1;
+  let searchQuery    = '';
+  let summonFilter   = '';
+  let archetypeFilter = '';
 
   // deckData[t] = Card[] (objects, duplicates allowed)
   const deckData = { 1: [], 2: [], 3: [], 4: [], 5: [] };
@@ -60,6 +61,13 @@ export async function mount(container, params = {}) {
           <button class="filter-pill active" data-type="">Tous</button>
           ${SUMMON_TYPES.map(t => `<button class="filter-pill" data-type="${t}">${cap(t)}</button>`).join('')}
         </div>
+        <select class="archetype-select" id="archetype-select">
+          <option value="">Tous les archétypes</option>
+          ${ArchetypeDatabase.getAllArchetypes()
+            .slice().sort((a, b) => a.name.localeCompare(b.name, 'fr'))
+            .map(a => `<option value="${esc(a.id)}">${esc(a.icon ?? '')} ${esc(a.name)}</option>`)
+            .join('')}
+        </select>
         <input class="search-input" id="search" type="search" placeholder="Rechercher…">
         <div class="card-grid" id="card-grid"></div>
       </div>
@@ -128,6 +136,7 @@ export async function mount(container, params = {}) {
 
     const filtered = pool.filter(c => {
       if (summonFilter && c.summon_type !== summonFilter) return false;
+      if (archetypeFilter && !(c.archetypes ?? []).includes(archetypeFilter)) return false;
       if (query && !c.name.toLowerCase().includes(query)) return false;
       return true;
     });
@@ -208,6 +217,11 @@ export async function mount(container, params = {}) {
 
   searchInput.addEventListener('input', () => {
     searchQuery = searchInput.value;
+    renderBrowser();
+  });
+
+  container.querySelector('#archetype-select').addEventListener('change', e => {
+    archetypeFilter = e.target.value;
     renderBrowser();
   });
 
