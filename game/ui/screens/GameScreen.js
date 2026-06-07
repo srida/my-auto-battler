@@ -25,6 +25,9 @@ export async function mount(container, params = {}) {
   const rawDeck = DeckRepository.loadDeck(deckName);
   if (!rawDeck) { navigate('deck_selector'); return; }
 
+  const enemyDeckName = params.enemyDeckName;
+  const rawEnemyDeck  = (enemyDeckName && DeckRepository.loadDeck(enemyDeckName)) || rawDeck;
+
   // Precompute per-tier card arrays from the deck
   const cardsByTier = {};
   for (let t = 1; t <= 5; t++) {
@@ -34,9 +37,11 @@ export async function mount(container, params = {}) {
   // Game objects
   const gameState = new GameState();
   const board = new Board();
-  const enemyAI = new EnemyAI(rawDeck, CardDatabase);
+  const enemyAI = new EnemyAI(rawEnemyDeck, CardDatabase);
   let hand = [];
-  let graveyard = [];           // Neutralized player units from last combat, usable as material
+  let graveyard = [];
+  let enemyUnits = [];
+  let enemyHand  = [];
   let _graveyardElMap = new Map(); // uid → DOM element (smart diff to avoid img rebuilds)
   let selectedCard = null;
   let selectedBoardPos = null;
@@ -523,6 +528,11 @@ export async function mount(container, params = {}) {
 
     handUI.setHand(hand);
 
+    // Enemy draws and places its units (they appear hidden on the board)
+    enemyAI.drawHand(gameState.round);
+    enemyUnits = enemyAI.placeFromHand(board, gameState.enemy_board_slots);
+    enemyHand  = enemyAI.getHand();
+
     selectedCard = null;
     selectedBoardPos = null;
     selectedMaterials = [];
@@ -542,10 +552,8 @@ export async function mount(container, params = {}) {
     phaseLabel.textContent = `Combat — Tour ${gameState.round}`;
     phaseLabel.style.color = '';
 
-    // Enemy setup
-    const enemyHand = enemyAI.selectHand();
+    // Multipliers (enemy hand and units already set during preparation)
     gameState.startCombat(hand.length, enemyHand.length);
-    const enemyUnits = enemyAI.placeUnits(board, gameState.enemy_board_slots);
 
     // Player units + archetypes
     const playerUnits = board.getLivingUnitsOnSide('player');
@@ -566,7 +574,7 @@ export async function mount(container, params = {}) {
     // Wire speed buttons (once per combat)
     let currentSpeed = 1;
     const animator = new CombatAnimator(combat, grid.gridEl(), {
-      onFinished: () => _finishCombat(combat, playerUnits, enemyUnits, archetypeManager),
+      onFinished: () => _finishCombat(combat, playerUnits, archetypeManager),
     });
 
     const btnPause = speedControls.querySelector('#btn-pause');
@@ -596,7 +604,7 @@ export async function mount(container, params = {}) {
     animator.start();
   }
 
-  function _finishCombat(combat, playerUnits, enemyUnits, archetypeManager) {
+  function _finishCombat(combat, playerUnits, archetypeManager) {
     // Post-combat archetype effects
     const playerNeutralized = playerUnits.filter(u => u.is_neutralized);
     const enemyNeutralized  = enemyUnits.filter(u => u.is_neutralized);
@@ -609,6 +617,8 @@ export async function mount(container, params = {}) {
 
     // Reset board: remove all enemy units
     for (const u of enemyUnits) board.removeUnit(u);
+    enemyUnits = [];
+    enemyHand  = [];
 
     // Remove neutralized player units from the board
     for (const u of playerUnits) {
