@@ -48,10 +48,12 @@ function _inner(unit) {
       <span class="unit-tier-stars">${stars}</span>
     </div>
     <div class="unit-status-icons">${_statusIcons(unit)}</div>
-    <div class="unit-team-hex"></div>
     <div class="unit-bars">
-      <div class="unit-pwr-bar"><div class="unit-pwr-fill" style="width:${pwrPct}%"></div></div>
-      <div class="unit-hp-bar"><div class="unit-hp-fill" style="width:${hpPct}%;background:${hpColor}"></div></div>
+      <div class="unit-team-hex"></div>
+      <div class="unit-bars-stack">
+        <div class="unit-pwr-bar"><div class="unit-pwr-fill" style="width:${pwrPct}%"></div></div>
+        <div class="unit-hp-bar"><div class="unit-hp-fill" style="width:${hpPct}%;background:${hpColor}"></div></div>
+      </div>
     </div>
   `.trim();
 }

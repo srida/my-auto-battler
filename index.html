@@ -362,28 +362,39 @@
   letter-spacing: -0.5px;
 }
 
-/* Team hexagon — bottom-left, above bars */
-.unit-team-hex {
-  position: absolute;
-  bottom: calc(var(--hp-bar-height) + var(--power-bar-height) + 3px);
-  left: 3px;
-  width: 12px;
-  height: 14px;
-  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-  z-index: 3;
-  pointer-events: none;
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
-}
-.unit-player .unit-team-hex { background: #3b9eff; }
-.unit-enemy  .unit-team-hex { background: var(--red); }
-
-/* Bars stacked at the very bottom */
+/* Bars row — absolute at bottom, hex left + stacked bars right */
 .unit-bars {
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
   z-index: 2;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+}
+/* Team hexagon — inline left column inside bars */
+.unit-team-hex {
+  width: 12px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.45);
+  pointer-events: none;
+}
+.unit-team-hex::before {
+  content: '';
+  display: block;
+  width: 8px;
+  height: 9px;
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+}
+.unit-player .unit-team-hex::before { background: #3b9eff; }
+.unit-enemy  .unit-team-hex::before { background: var(--red); }
+/* Bars stack (power above HP) */
+.unit-bars-stack {
+  flex: 1;
   display: flex;
   flex-direction: column;
 }
@@ -600,7 +611,8 @@
 .graveyard-units .unit-tier-badge { width: 15px; height: 15px; top: 2px; left: 2px; }
 .graveyard-units .unit-tier-num { font-size: 5px; }
 .graveyard-units .unit-tier-stars { font-size: 3px; }
-.graveyard-units .unit-team-hex { width: 9px; height: 10px; left: 2px; }
+.graveyard-units .unit-team-hex { width: 9px; }
+.graveyard-units .unit-team-hex::before { width: 6px; height: 7px; }
 
 /* ── Combat projectile ──────────────────────────────────────────── */
 .combat-projectile {
