@@ -128,7 +128,7 @@ export class Unit {
     this.attack_speed = Math.max(1, this._base.attack_speed + (this._stat_bonuses.attack_speed || 0));
     this.movement_speed = this._base.movement_speed;
     this.initiative = this._base.initiative;
-    this.range = this._base.range;
+    this.range = Math.max(1, this._base.range + (this._stat_bonuses.range || 0));
   }
 
   // Serialise l'état pour le Board Inspector (debug)

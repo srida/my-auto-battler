@@ -92,12 +92,14 @@ export class EnemyAI {
    *   - Low range (melee/tanks) → front rows (4–5, closest to player)
    *   - High range (ranged)     → back rows (6–7)
    *   Within each group, highest HP goes furthest forward.
+   * Enforces maxUnits cap (excess units are dropped).
    * Updates initial_position so units return here after combat.
    * @param {Board} board
+   * @param {number} maxUnits
    */
-  rearrangeUnits(board) {
+  rearrangeUnits(board, maxUnits = 5) {
     const units = board.getLivingUnitsOnSide('enemy');
-    if (units.length <= 1) return;
+    if (units.length === 0) return;
 
     for (const u of units) board.removeUnit(u);
 
@@ -106,15 +108,30 @@ export class EnemyAI {
       return b.max_hp - a.max_hp;                        // higher HP → front within group
     });
 
-    // Enemy cells front-to-back: row 4 (closest to player) → row 7
-    const cells = [];
-    for (let row = 4; row <= 7; row++)
-      for (let col = 0; col < 5; col++)
-        cells.push({ col, row });
+    const toPlace = sorted.slice(0, maxUnits);
 
-    for (let i = 0; i < sorted.length; i++) {
-      sorted[i].initial_position = null; // reset so placeUnit assigns the new cell
-      board.placeUnit(sorted[i], cells[i]);
+    const melee  = toPlace.filter(u => u.range <= 1);
+    const ranged = toPlace.filter(u => u.range > 1);
+
+    // Column order: centre-out so units are never bunched at one edge
+    const COL = [2, 1, 3, 0, 4];
+
+    // Assign positions for a group: max 3 per row, then spill into next row.
+    // startRow: row 4 for melee (front), row 6 for ranged (or 5 if no melee).
+    const assign = (group, startRow) =>
+      group.map((u, i) => ({
+        unit: u,
+        pos: { col: COL[i % 5], row: startRow + Math.floor(i / 3) },
+      }));
+
+    const placements = [
+      ...assign(melee, 4),
+      ...assign(ranged, melee.length > 0 ? 6 : 5),
+    ];
+
+    for (const { unit, pos } of placements) {
+      unit.initial_position = null; // reset so placeUnit assigns the new cell
+      board.placeUnit(unit, pos);
     }
   }
 
