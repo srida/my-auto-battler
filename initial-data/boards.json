@@ -2,7 +2,6 @@
   {
     "id": "BOARD_001",
     "name": "Plaine Neutre",
-    "description": "Aucun effet particulier.",
     "effect": null,
     "blocked_cells": []
   }
