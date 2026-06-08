@@ -66,6 +66,11 @@ Repo : `https://github.com/srida/my-auto-battler`
 | `GET /api/powers` | Public | Pouvoirs |
 | `POST/PUT/DELETE /api/*` | Auth | Écriture admin |
 | `GET /illustrations/:id` | Public | Art des cartes (PNG sans extension) |
+| `POST /api/cards/import` | Auth | Import en masse (mode skip/replace) |
+| `POST /api/cards/:id/illustration` | Auth | Upload illustration (URL ou base64) |
+| `POST /api/archetypes/import` | Auth | Import archetypes en masse |
+| `POST /api/powers/import` | Auth | Import pouvoirs en masse |
+| `GET /api/export` | Auth | Export complet avec checksums illustrations |
 
 ---
 
@@ -128,11 +133,15 @@ PowerDatabase.getPower(id)
 
 DeckRepository.saveDeck(name, deck)
 DeckRepository.loadDeck(name)
+DeckRepository.deleteDeck(name)
+DeckRepository.renameDeck(oldName, newName)
+DeckRepository.deckExists(name)
 DeckRepository.getActiveDeck()
 DeckRepository.setActiveDeck(name)
 DeckRepository.hasDeck(name)
 DeckRepository.listDecks()
-DeckRepository.setPendingEdit(name)   // communication inter-écrans
+DeckRepository.setPendingEdit(name)      // stocke en sessionStorage
+DeckRepository.consumePendingEdit()      // lit ET efface le pendingEdit
 ```
 
 **DeckRepository** persiste en `localStorage`. Structure d'un deck :
@@ -149,16 +158,20 @@ DeckRepository.setPendingEdit(name)   // communication inter-écrans
 `step()` retourne un tableau d'événements :
 
 ```js
-{ type: 'move',       unit, from, to }
-{ type: 'attack',     attacker, target, damage }
-{ type: 'power',      unit, targets, power_id }
-{ type: 'death',      unit }
-{ type: 'combat_end', winner }
+{ type: 'move',        unit, from, to }
+{ type: 'attack',      attacker, target, damage }
+{ type: 'power',       unit, targets, power_id, extra: {...} }
+{ type: 'dot',         unit, damage }               // pulse de poison
+{ type: 'stat_change', unit, stat, value }          // effet archetype during_combat
+{ type: 'death',       unit }
+{ type: 'combat_end',  winner }
 ```
 
 `CombatAnimator` consomme ces événements via `requestAnimationFrame` et applique les animations CSS.
 
 Le timing est géré par `CombatAnimator`, jamais par `CombatManager`. Pas de `setTimeout` dans la logique.
+
+**Timing :** `BASE_TICK_MS = 180` — intervalle de base entre les steps. Vitesse effective : `BASE_TICK_MS / speed` (speed = 1 | 2 | 4).
 
 ---
 
@@ -241,6 +254,8 @@ Calculé dans `GameScreen.js` (côté joueur) et `EnemyAI.computeMultiplier()`.
 
 ## Pot de Cupidité
 
+> ⚠️ Non implémenté — prévu Phase 8
+
 Disponible pendant la phase de préparation. Utilisable une fois par tour.
 
 Effet : piocher 2 cartes supplémentaires.
@@ -260,6 +275,8 @@ Après utilisation : le bouton devient grisé pour le reste de la préparation.
 ---
 
 ## Monster Reborn
+
+> ⚠️ Non implémenté — prévu Phase 8
 
 Disponible à partir du tour 2. Utilisable une fois par tour.
 
@@ -306,6 +323,12 @@ unit.position
 board.grid
 ```
 
+**Structure interne :** `grid[col][row]` — stockage en ordre col-major.
+
+```js
+board.grid[2][0]  // unité en colonne 2, rangée 0 (milieu haut, côté joueur)
+```
+
 ---
 
 ## Unit Model
@@ -336,6 +359,17 @@ Les unités persistent entre les tours.
 Unités détruites : retirées définitivement.
 
 Survivants : retournent à `initial_position` après le combat.
+
+---
+
+## Graveyard (Cimetière)
+
+Les unités neutralisées entrent dans `graveyard[]` (joueur) ou `enemyGraveyard[]` (ennemi).
+
+Rôle pendant la phase de préparation :
+- Disponibles comme matériaux d'invocation (sacrifice, fusion, rituel, transformation)
+- Une unité venant du cimetière **ne consomme pas de slot de board** lors d'une transformation (elle est déjà hors jeu)
+- Supprimées définitivement au lancement du combat si non consommées
 
 ---
 
@@ -453,6 +487,14 @@ Les effets `start_of_combat` sont recalculés au prochain combat en fonction des
 
 `ArchetypeManager.computeBonuses(units, archetypeDb)` — appelé au début de chaque combat.
 
+### Détails d'implémentation
+
+- `stat_bonus` avec champ `value_per` : la valeur est multipliée par le nombre d'unités **ennemies** portant cet archetype (bonus contextuel)
+- `shield` : la valeur est multipliée par le nombre d'unités **alliées vivantes** au moment du déclenchement
+- Les seuils `during_combat` sont **verrouillés au début du combat** — les morts en cours de combat ne désactivent pas les effets déjà actifs
+- `reapplyBonuses(unit)` : ré-applique les bonus `start_of_combat` après un `POWER_DEBUFF` (qui réinitialise les stats de la cible)
+- `getActiveSynergies(units)` → `[{arch, count, activeThreshold, nextThreshold}]` — utilisé par le panneau d'archetypes de l'UI
+
 ---
 
 ## Powers
@@ -525,6 +567,21 @@ L'occupancy du board doit toujours être mise à jour lors d'un déplacement :
 ```js
 board.moveUnit(unit, to)  // met à jour grid + unit.position ensemble
 ```
+
+---
+
+## EnemyAI — Stratégie de placement
+
+L'IA place les unités en deux passes :
+1. Cartes normales en premier (libèrent les matériaux potentiels)
+2. Cartes à invocation spéciale (peuvent consommer les unités posées)
+
+Arrangement post-placement (`rearrangeUnits`) :
+- Unités mêlée (range ≤ 1) → rangées 4–5 (front)
+- Unités à distance (range > 1) → rangées 6–7 (back)
+- Ordre de colonnes : `[2, 1, 3, 0, 4]` (centre vers bords)
+- HP le plus élevé → rangée la plus avancée dans chaque groupe
+- Maximum 3 unités par rangée, débordement vers la rangée suivante
 
 ---
 
