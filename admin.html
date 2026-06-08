@@ -1556,6 +1556,9 @@ const EFFECT_TYPE_LABELS = {
   draw_bonus: 'Pioche',
   revive: 'Réanimation',
   shield: 'Bouclier',
+  player_hp_bonus: 'Bonus HP joueur',
+  board_slot_bonus: 'Slot de board',
+  guaranteed_draw: 'Pioche garantie',
 };
 
 function filterMagies() {
@@ -1594,7 +1597,8 @@ function renderMagieDetail() {
   const effect = m.effect || {};
   const effectType = effect.type || 'none';
   const showStat = ['stat_bonus', 'stat_modifier'].includes(effectType);
-  const showTarget = ['stat_bonus', 'stat_modifier', 'shield'].includes(effectType);
+  const showTier = effectType === 'guaranteed_draw';
+  const showValue = effectType !== 'none' && !showTier;
   el.innerHTML = `
     <button class="back-btn" onclick="showList()">Retour à la liste</button>
     <div class="detail-header">
@@ -1633,8 +1637,11 @@ function renderMagieDetail() {
           <option value="stat_bonus" ${effectType === 'stat_bonus' ? 'selected' : ''}>Bonus de stat</option>
           <option value="stat_modifier" ${effectType === 'stat_modifier' ? 'selected' : ''}>Modificateur de stat</option>
           <option value="draw_bonus" ${effectType === 'draw_bonus' ? 'selected' : ''}>Pioche supplémentaire</option>
+          <option value="guaranteed_draw" ${effectType === 'guaranteed_draw' ? 'selected' : ''}>Pioche garantie (par tier)</option>
           <option value="revive" ${effectType === 'revive' ? 'selected' : ''}>Réanimation (%HP)</option>
           <option value="shield" ${effectType === 'shield' ? 'selected' : ''}>Bouclier</option>
+          <option value="player_hp_bonus" ${effectType === 'player_hp_bonus' ? 'selected' : ''}>Bonus HP joueur</option>
+          <option value="board_slot_bonus" ${effectType === 'board_slot_bonus' ? 'selected' : ''}>Slot de board supplémentaire</option>
         </select>
       </div>
     </div>
@@ -1650,14 +1657,20 @@ function renderMagieDetail() {
           <option value="initiative" ${effect.stat === 'initiative' ? 'selected' : ''}>Initiative</option>
         </select>
       </div>
-      <div class="field">
+      <div class="field" id="mf-value-field" style="${showValue ? '' : 'display:none'}">
         <label>Valeur</label>
         <input id="mf-effect-value" type="number" step="any" value="${effect.value ?? 0}">
       </div>
-    </div>
-    <div class="field" id="mf-target-field" style="margin-top:10px;${showTarget ? '' : 'display:none'}">
-      <label>Archétypes ciblés (IDs séparés par des virgules — vide = toutes unités)</label>
-      <input id="mf-effect-targets" value="${esc((effect.target_archetypes || []).join(', '))}" placeholder="ARCH_001, ARCH_002">
+      <div class="field" id="mf-tier-field" style="${showTier ? '' : 'display:none'}">
+        <label>Tier de la carte garantie</label>
+        <select id="mf-effect-tier">
+          <option value="1" ${effect.tier === 1 ? 'selected' : ''}>Tier 1</option>
+          <option value="2" ${effect.tier === 2 ? 'selected' : ''}>Tier 2</option>
+          <option value="3" ${effect.tier === 3 ? 'selected' : ''}>Tier 3</option>
+          <option value="4" ${effect.tier === 4 ? 'selected' : ''}>Tier 4</option>
+          <option value="5" ${effect.tier === 5 ? 'selected' : ''}>Tier 5</option>
+        </select>
+      </div>
     </div>
 
     <div class="actions">
@@ -1673,27 +1686,25 @@ function renderMagieDetail() {
 function updateMagieEffectFields() {
   const type = document.getElementById('mf-effect-type')?.value || 'none';
   const showStat = ['stat_bonus', 'stat_modifier'].includes(type);
-  const showTarget = ['stat_bonus', 'stat_modifier', 'shield'].includes(type);
-  const statField = document.getElementById('mf-stat-field');
-  const targetField = document.getElementById('mf-target-field');
-  if (statField) statField.style.display = showStat ? '' : 'none';
-  if (targetField) targetField.style.display = showTarget ? '' : 'none';
+  const showTier = type === 'guaranteed_draw';
+  const showValue = type !== 'none' && !showTier;
+  document.getElementById('mf-stat-field').style.display = showStat ? '' : 'none';
+  document.getElementById('mf-value-field').style.display = showValue ? '' : 'none';
+  document.getElementById('mf-tier-field').style.display = showTier ? '' : 'none';
 }
 
 function _collectMagieFields() {
   const effectType = document.getElementById('mf-effect-type')?.value || 'none';
   let effect = null;
   if (effectType !== 'none') {
-    effect = {
-      type: effectType,
-      value: parseFloat(document.getElementById('mf-effect-value')?.value) || 0,
-    };
+    effect = { type: effectType };
+    if (effectType === 'guaranteed_draw') {
+      effect.tier = parseInt(document.getElementById('mf-effect-tier')?.value) || 1;
+    } else {
+      effect.value = parseFloat(document.getElementById('mf-effect-value')?.value) || 0;
+    }
     if (['stat_bonus', 'stat_modifier'].includes(effectType)) {
       effect.stat = document.getElementById('mf-effect-stat')?.value || 'atk';
-    }
-    if (['stat_bonus', 'stat_modifier', 'shield'].includes(effectType)) {
-      const raw = document.getElementById('mf-effect-targets')?.value || '';
-      effect.target_archetypes = raw.split(',').map(s => s.trim()).filter(Boolean);
     }
   }
   return {

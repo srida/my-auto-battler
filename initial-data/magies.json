@@ -13,8 +13,7 @@
 		"effect": {
 			"type": "stat_bonus",
 			"stat": "atk",
-			"value": 15,
-			"target_archetypes": []
+			"value": 15
 		}
 	},
 	{
@@ -30,8 +29,7 @@
 		"name": "Bouclier Sacré",
 		"effect": {
 			"type": "shield",
-			"value": 40,
-			"target_archetypes": []
+			"value": 40
 		}
 	},
 	{
@@ -40,8 +38,31 @@
 		"effect": {
 			"type": "stat_modifier",
 			"stat": "atk",
-			"value": 1.5,
-			"target_archetypes": ["ARCH_003"]
+			"value": 1.5
+		}
+	},
+	{
+		"id": "MAGIC_006",
+		"name": "Elixir de Vie",
+		"effect": {
+			"type": "player_hp_bonus",
+			"value": 100
+		}
+	},
+	{
+		"id": "MAGIC_007",
+		"name": "Extension du Territoire",
+		"effect": {
+			"type": "board_slot_bonus",
+			"value": 1
+		}
+	},
+	{
+		"id": "MAGIC_008",
+		"name": "Appel du Destin",
+		"effect": {
+			"type": "guaranteed_draw",
+			"tier": 3
 		}
 	}
 ]
