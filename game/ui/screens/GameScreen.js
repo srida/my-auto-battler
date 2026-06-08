@@ -820,14 +820,14 @@ export async function mount(container, params = {}) {
     if (bp) { bp.textContent = '⏸'; bp.classList.remove('active'); }
     btnCombat.style.display = '';
 
-    _startShopping(winner);
+    _showEndRound(winner);
   }
 
   // ── Shopping phase ───────────────────────────────────────────────────────
 
   function _startShopping(winner) {
     const offered = MagieDatabase.getRandomMagies(3);
-    if (!offered.length) { _showEndRound(winner); return; }
+    if (!offered.length) { gameState.nextRound(); startPreparation(); return; }
 
     const overlay = document.createElement('div');
     overlay.className = 'shopping-overlay';
@@ -861,12 +861,11 @@ export async function mount(container, params = {}) {
   }
 
   function _applyChosenMagie(magie, winner) {
+    const _proceed = () => { gameState.nextRound(); startPreparation(); };
+
     if (needsUnitTarget(magie)) {
       const targets = board.getLivingUnitsOnSide('player');
-      if (!targets.length) {
-        _showEndRound(winner);
-        return;
-      }
+      if (!targets.length) { _proceed(); return; }
       grid.setHighlight(targets.map(u => u.position).filter(Boolean));
       const banner = _showShoppingBanner(`✨ ${magie.name} — Touchez une unité sur votre terrain`);
       _shoppingUnitCallback = (unit) => {
@@ -876,10 +875,10 @@ export async function mount(container, params = {}) {
         grid.clearHighlight();
         applyMagieEffect(magie, { gameState, targetUnit: unit });
         grid.refresh();
-        _showEndRound(winner);
+        _proceed();
       };
     } else if (needsGraveyardTarget(magie)) {
-      if (!graveyard.length) { _showEndRound(winner); return; }
+      if (!graveyard.length) { _proceed(); return; }
       const deadUnits = [...graveyard];
       container.querySelector('#graveyard-area').style.display = '';
       _refreshGraveyard();
@@ -897,11 +896,11 @@ export async function mount(container, params = {}) {
         graveyard = graveyard.filter(u => u.uid !== unit.uid);
         grid.refresh();
         _refreshGraveyard();
-        _showEndRound(winner);
+        _proceed();
       };
     } else {
       applyMagieEffect(magie, { gameState });
-      _showEndRound(winner);
+      _proceed();
     }
   }
 
@@ -941,8 +940,7 @@ export async function mount(container, params = {}) {
       if (isOver) {
         _showGameOver();
       } else {
-        gameState.nextRound();
-        startPreparation();
+        _startShopping(winner);
       }
     });
   }
