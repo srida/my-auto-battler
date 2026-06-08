@@ -4,6 +4,8 @@ import * as DeckRepository from '../../data/DeckRepository.js';
 import * as PowerDatabase from '../../data/PowerDatabase.js';
 import * as ArchetypeDatabase from '../../data/ArchetypeDatabase.js';
 import * as BoardDatabase from '../../data/BoardDatabase.js';
+import * as MagieDatabase from '../../data/MagieDatabase.js';
+import { applyEffect as applyMagieEffect, needsUnitTarget, needsGraveyardTarget, effectLabel as magieEffectLabel } from '../../logic/MagieEffect.js';
 import { Board } from '../../logic/Board.js';
 import { GameState, Phase } from '../../logic/GameState.js';
 import { EnemyAI } from '../../logic/EnemyAI.js';
@@ -19,7 +21,7 @@ import * as Tooltip from '../components/Tooltip.js';
 const HAND_SIZE = 5;
 
 export async function mount(container, params = {}) {
-  await Promise.all([CardDatabase.init(), PowerDatabase.init(), ArchetypeDatabase.init(), BoardDatabase.init()]);
+  await Promise.all([CardDatabase.init(), PowerDatabase.init(), ArchetypeDatabase.init(), BoardDatabase.init(), MagieDatabase.init()]);
 
   const deckName = params.deckName || DeckRepository.getActiveDeck();
   if (!deckName) { navigate('deck_selector'); return; }
@@ -48,6 +50,8 @@ export async function mount(container, params = {}) {
   let selectedCard = null;
   let selectedBoardPos = null;
   let selectedMaterials = [];  // Unit[] — board or graveyard units selected as material/tribute
+  let _shoppingUnitCallback = null;      // set during shopping unit-selection mode
+  let _shoppingGraveyardCallback = null; // set during shopping graveyard-selection mode
 
   // ── Shell ────────────────────────────────────────────────────────────────
 
@@ -152,6 +156,7 @@ export async function mount(container, params = {}) {
   }
 
   function handleCellTap(pos) {
+    if (_shoppingUnitCallback || _shoppingGraveyardCallback) return;
     Tooltip.hide();
     if (selectedCard) {
       if (_needsMaterials(selectedCard, board, graveyard) && !_materialsComplete(selectedCard, selectedMaterials)) {
@@ -166,6 +171,10 @@ export async function mount(container, params = {}) {
 
   function handleUnitTap(unit, pos) {
     Tooltip.hide();
+    if (_shoppingUnitCallback) {
+      if (unit.side === 'player') _shoppingUnitCallback(unit);
+      return;
+    }
     if (unit.side !== 'player') return;
 
     // Material selection mode: a card requiring board materials is selected
@@ -255,6 +264,7 @@ export async function mount(container, params = {}) {
   }
 
   function handleUnitDrag(unit, fromPos, toPos) {
+    if (_shoppingUnitCallback || _shoppingGraveyardCallback) return;
     if (gameState.phase !== Phase.PREPARATION) return;
     if (unit.side !== 'player') return;
     if (toPos.col === fromPos.col && toPos.row === fromPos.row) return;
@@ -501,7 +511,10 @@ export async function mount(container, params = {}) {
 
   function handleGraveyardUnitTap(unit) {
     Tooltip.hide();
-
+    if (_shoppingGraveyardCallback) {
+      _shoppingGraveyardCallback(unit);
+      return;
+    }
     if (selectedCard && _needsMaterials(selectedCard, board, graveyard)) {
       const candidates = _materialCandidateGraveyard(selectedCard, selectedMaterials);
       const idx = selectedMaterials.indexOf(unit);
@@ -807,7 +820,97 @@ export async function mount(container, params = {}) {
     if (bp) { bp.textContent = '⏸'; bp.classList.remove('active'); }
     btnCombat.style.display = '';
 
-    _showEndRound(winner);
+    _startShopping(winner);
+  }
+
+  // ── Shopping phase ───────────────────────────────────────────────────────
+
+  function _startShopping(winner) {
+    const offered = MagieDatabase.getRandomMagies(3);
+    if (!offered.length) { _showEndRound(winner); return; }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'shopping-overlay';
+    overlay.innerHTML = `
+      <div class="shopping-title">✨ Phase Shopping</div>
+      <div class="shopping-subtitle">Choisissez une magie</div>
+      <div class="shopping-magies-row">
+        ${offered.map((m, i) => `
+          <div class="shopping-magie-card" data-idx="${i}">
+            <div class="shopping-magie-illus">
+              ${m._has_illustration
+                ? `<img src="/illustrations/${m.id}" alt="" loading="lazy">`
+                : '✨'}
+            </div>
+            <div class="shopping-magie-name">${m.name}</div>
+            <div class="shopping-magie-effect">${magieEffectLabel(m)}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+    container.appendChild(overlay);
+
+    overlay.querySelectorAll('.shopping-magie-card').forEach(card => {
+      card.addEventListener('pointerdown', e => {
+        e.stopPropagation();
+        const chosen = offered[+card.dataset.idx];
+        overlay.remove();
+        _applyChosenMagie(chosen, winner);
+      });
+    });
+  }
+
+  function _applyChosenMagie(magie, winner) {
+    if (needsUnitTarget(magie)) {
+      const targets = board.getLivingUnitsOnSide('player');
+      if (!targets.length) {
+        _showEndRound(winner);
+        return;
+      }
+      grid.setHighlight(targets.map(u => u.position).filter(Boolean));
+      const banner = _showShoppingBanner(`✨ ${magie.name} — Touchez une unité sur votre terrain`);
+      _shoppingUnitCallback = (unit) => {
+        if (!targets.includes(unit)) return;
+        _shoppingUnitCallback = null;
+        banner.remove();
+        grid.clearHighlight();
+        applyMagieEffect(magie, { gameState, targetUnit: unit });
+        grid.refresh();
+        _showEndRound(winner);
+      };
+    } else if (needsGraveyardTarget(magie)) {
+      if (!graveyard.length) { _showEndRound(winner); return; }
+      const deadUnits = [...graveyard];
+      container.querySelector('#graveyard-area').style.display = '';
+      _refreshGraveyard();
+      const banner = _showShoppingBanner(`✨ ${magie.name} — Touchez une unité dans le cimetière`);
+      _shoppingGraveyardCallback = (unit) => {
+        if (!deadUnits.includes(unit)) return;
+        _shoppingGraveyardCallback = null;
+        banner.remove();
+        applyMagieEffect(magie, { gameState, targetUnit: unit });
+        const target = unit.initial_position && !board.isOccupied(unit.initial_position)
+          ? unit.initial_position : board.firstEmptyPlayerCell();
+        if (target) {
+          try { board.placeUnit(unit, target); } catch (_) {}
+        }
+        graveyard = graveyard.filter(u => u.uid !== unit.uid);
+        grid.refresh();
+        _refreshGraveyard();
+        _showEndRound(winner);
+      };
+    } else {
+      applyMagieEffect(magie, { gameState });
+      _showEndRound(winner);
+    }
+  }
+
+  function _showShoppingBanner(text) {
+    const banner = document.createElement('div');
+    banner.className = 'shopping-select-banner';
+    banner.textContent = text;
+    container.appendChild(banner);
+    return banner;
   }
 
   // ── End of round overlay ─────────────────────────────────────────────────

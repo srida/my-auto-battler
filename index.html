@@ -761,6 +761,47 @@
 .end-round-result { font-size: 1.6rem; font-weight: 800; }
 .end-round-hps { display: flex; align-items: center; justify-content: center; gap: 16px; font-size: 20px; font-weight: 700; }
 
+/* ── Shopping phase ─────────────────────────────────────────── */
+.shopping-overlay {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,.88);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  z-index: 48; padding: 20px; gap: 16px;
+}
+.shopping-title { font-size: 1.4rem; font-weight: 800; }
+.shopping-subtitle { font-size: .82rem; color: var(--muted); margin-top: -8px; }
+.shopping-magies-row {
+  display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;
+  width: 100%; max-width: 600px;
+}
+.shopping-magie-card {
+  background: var(--surface); border: 2px solid var(--border);
+  border-radius: var(--radius-lg); padding: 14px 10px;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  cursor: pointer; flex: 1; min-width: 140px; max-width: 180px;
+  text-align: center; touch-action: manipulation;
+  transition: border-color .15s, transform .1s;
+}
+.shopping-magie-card:active { border-color: var(--accent); transform: scale(.97); }
+@media (hover: hover) {
+  .shopping-magie-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+}
+.shopping-magie-illus {
+  width: 68px; height: 68px; border-radius: var(--radius);
+  background: var(--surface2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 2rem; overflow: hidden; flex-shrink: 0;
+}
+.shopping-magie-illus img { width: 100%; height: 100%; object-fit: cover; }
+.shopping-magie-name { font-weight: 700; font-size: .88rem; }
+.shopping-magie-effect { font-size: .73rem; color: var(--muted); line-height: 1.4; }
+.shopping-select-banner {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 48;
+  background: var(--accent); color: #fff;
+  text-align: center; padding: 10px 16px;
+  font-weight: 700; font-size: .88rem;
+}
+
 /* ── Power cast label (toast flottant au-dessus de l'unité) ── */
 @keyframes power-toast-anim {
   0%   { opacity: 0; transform: translate(-50%, 0); }
