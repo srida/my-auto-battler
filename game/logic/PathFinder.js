@@ -61,7 +61,7 @@ export function findClosestEnemy(unit, enemies) {
   let bestDist = Infinity;
   for (const e of enemies) {
     if (!e.isAlive()) continue;
-    const d = chebyshevDistance(unit.position, e.position);
+    const d = manhattanDistance(unit.position, e.position);
     if (d < bestDist) { bestDist = d; best = e; }
   }
   return best ? { unit: best, distance: bestDist } : null;
@@ -69,31 +69,23 @@ export function findClosestEnemy(unit, enemies) {
 
 /**
  * Returns true if `attacker` can attack `target` given its range.
- * Range-1 units use Manhattan distance (cardinal only, no diagonals).
- * Range > 1 units use Chebyshev distance (8-directional).
+ * All units use Manhattan distance (cardinal directions only).
  */
 export function isInAttackRange(attacker, target) {
-  if (attacker.range === 1) {
-    return manhattanDistance(attacker.position, target.position) <= 1;
-  }
-  return chebyshevDistance(attacker.position, target.position) <= attacker.range;
+  return manhattanDistance(attacker.position, target.position) <= attacker.range;
 }
 
 /**
  * Find the best attack target for `unit` among `enemies`.
- * Uses Manhattan distance for range-1 units, Chebyshev for range > 1.
+ * Uses Manhattan distance for all range values.
  * Returns { unit, distance } or null.
  */
 export function findAttackTarget(unit, enemies) {
-  const distFn = unit.range === 1
-    ? (a, b) => manhattanDistance(a, b)
-    : (a, b) => chebyshevDistance(a, b);
-
   let best = null;
   let bestDist = Infinity;
   for (const e of enemies) {
     if (!e.isAlive()) continue;
-    const d = distFn(unit.position, e.position);
+    const d = manhattanDistance(unit.position, e.position);
     if (d < bestDist) { bestDist = d; best = e; }
   }
   return best ? { unit: best, distance: bestDist } : null;

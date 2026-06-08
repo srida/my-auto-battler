@@ -563,6 +563,14 @@ Parmi les candidats de cette rangée :
 
 Aucun hasard. Le combat est entièrement déterministe.
 
+### Portée des attaques
+
+Toutes les unités utilisent la **distance de Manhattan** — `|dx| + |dy|` (4 directions cardinales uniquement, pas de diagonales).
+
+```js
+isInAttackRange(attacker, target) → manhattanDistance(pos, target.pos) <= attacker.range
+```
+
 ---
 
 ## Movement
