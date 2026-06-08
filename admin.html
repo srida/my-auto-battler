@@ -25,7 +25,7 @@
   --yellow: #f0c040;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; }
+body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; overflow-x: hidden; }
 
 /* Layout */
 .app { display: flex; flex-direction: column; height: 100vh; }
@@ -192,10 +192,12 @@ select.filter:focus { border-color: var(--accent); }
 .mobile-info { display: none; }
 
 @media (max-width: 768px) {
-  /* Topbar */
-  .topbar { padding: 10px 12px; gap: 8px; }
+  /* Topbar — wrap onto two lines so tabs never overflow the viewport */
+  .topbar { padding: 8px 12px 0; gap: 6px; flex-wrap: wrap; }
   .topbar h1 { font-size: 14px; white-space: nowrap; }
   .tab { padding: 5px 9px; font-size: 12px; }
+  .tabs { overflow-x: auto; flex-shrink: 0; padding-bottom: 8px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
 
   /* Single-panel layout */
   .main { position: relative; overflow: hidden; }
@@ -2284,12 +2286,6 @@ function renderBoardDetail() {
     ['attack_speed','Vitesse attaque'],['initiative','Initiative'],['range','Portée'],
   ].map(([v,l]) => `<option value="${v}" ${e?.stat===v?'selected':''}>${l}</option>`).join('');
 
-  const archOpts = archetypes.map(a =>
-    `<option value="${a.id}" ${e?.target_archetypes?.includes(a.id)?'selected':''}>${esc(a.icon||'')} ${esc(a.name)}</option>`
-  ).join('');
-
-  const targetAll = !e?.target_archetypes?.length;
-
   el.innerHTML = `
     <button class="back-btn" onclick="showList()">Retour à la liste</button>
     <div class="detail-title" style="margin-bottom:16px">🗺️ ${esc(b.name)}</div>
@@ -2322,15 +2318,14 @@ function renderBoardDetail() {
       </div>
     </div>
     <div id="bf-target-wrap" style="${e?.type?'':'display:none'}">
-      <div class="field">
-        <label>Cible — s'applique aux unités des 2 joueurs</label>
-        <label style="display:flex;align-items:center;gap:6px;margin:6px 0;cursor:pointer;font-weight:400">
-          <input type="checkbox" id="bf-target-all" onchange="toggleBoardArchTarget()" ${targetAll?'checked':''}>
-          Tous les archétypes
-        </label>
-        <select id="bf-target-archetypes" multiple style="height:100px;${targetAll?'display:none':''}">
-          ${archOpts}
-        </select>
+      <div class="section-title" style="margin-top:20px">Archétypes cibles <span style="font-size:10px;font-weight:400;color:var(--muted)">(vide = tous les archétypes)</span></div>
+      <div class="arch-chips" id="bf-arch-chips">
+        ${(e?.target_archetypes || []).map(aid => `
+          <span class="arch-chip" data-aid="${aid}" onclick="removeBoardTargetArch('${aid}')">
+            ${getArchName(aid)} <span class="remove">×</span>
+          </span>
+        `).join('')}
+        <button class="arch-add" onclick="openBoardArchPickModal()">+ Ajouter</button>
       </div>
     </div>
 
@@ -2371,9 +2366,38 @@ function toggleBoardEffectFields() {
   document.getElementById('bf-target-wrap').style.display = type ? '' : 'none';
 }
 
-function toggleBoardArchTarget() {
-  const all = document.getElementById('bf-target-all').checked;
-  document.getElementById('bf-target-archetypes').style.display = all ? 'none' : '';
+function removeBoardTargetArch(aid) {
+  const chip = document.querySelector(`#bf-arch-chips .arch-chip[data-aid="${aid}"]`);
+  if (chip) chip.remove();
+}
+
+function openBoardArchPickModal() {
+  const current = [...document.querySelectorAll('#bf-arch-chips .arch-chip')].map(el => el.dataset.aid);
+  showModal(`
+    <h2>Ajouter un archétype cible</h2>
+    <div style="display:flex;flex-direction:column;gap:6px;max-height:360px;overflow-y:auto">
+      ${archetypes.filter(a => !current.includes(a.id)).map(a => `
+        <div class="list-item" style="border-radius:6px" onclick="addBoardTargetArch('${a.id}')">
+          <span style="font-size:16px">${a.icon || ''}</span>
+          <div><div>${esc(a.name)}</div><div style="font-size:11px;color:var(--muted);font-family:monospace">${a.id}</div></div>
+        </div>
+      `).join('')}
+    </div>
+    <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Fermer</button></div>
+  `);
+}
+
+function addBoardTargetArch(aid) {
+  const chipsEl = document.getElementById('bf-arch-chips');
+  if (!chipsEl || chipsEl.querySelector(`[data-aid="${aid}"]`)) { closeModal(); return; }
+  const addBtn = chipsEl.querySelector('.arch-add');
+  const chip = document.createElement('span');
+  chip.className = 'arch-chip';
+  chip.dataset.aid = aid;
+  chip.onclick = () => removeBoardTargetArch(aid);
+  chip.innerHTML = `${getArchName(aid)} <span class="remove">×</span>`;
+  chipsEl.insertBefore(chip, addBtn);
+  closeModal();
 }
 
 function _renderBlockedCellsGrid() {
@@ -2407,10 +2431,7 @@ function _collectBoardFields() {
     const needsStat = type === 'stat_bonus' || type === 'stat_modifier';
     effect = { type, value: +document.getElementById('bf-effect-value').value };
     if (needsStat) effect.stat = document.getElementById('bf-effect-stat').value;
-    const targetAll = document.getElementById('bf-target-all').checked;
-    effect.target_archetypes = targetAll
-      ? []
-      : [...document.getElementById('bf-target-archetypes').selectedOptions].map(o => o.value);
+    effect.target_archetypes = [...document.querySelectorAll('#bf-arch-chips .arch-chip')].map(el => el.dataset.aid);
   }
   return {
     id:            document.getElementById('bf-id').value.trim(),
