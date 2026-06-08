@@ -7,7 +7,7 @@ import * as Tooltip from '../components/Tooltip.js';
 
 const TIER_COLOR = ['', 'tier1', 'tier2', 'tier3', 'tier4', 'tier5'];
 const SUMMON_TYPES = ['normal', 'sacrifice', 'fusion', 'rituel', 'transformation'];
-const TIER_MIN = 4; // minimum cards per tier to validate the deck
+const DECK_MIN = 20; // minimum total cards across all tiers
 
 export async function mount(container, params = {}) {
   await Promise.all([CardDatabase.init(), PowerDatabase.init(), ArchetypeDatabase.init()]);
@@ -36,7 +36,7 @@ export async function mount(container, params = {}) {
     }
   }
 
-  // Max slots per tier = min(8, pool_size) — minimum to validate is TIER_MIN (4)
+  // Max slots per tier = min(8, pool_size) — no per-tier minimum, total must reach DECK_MIN
   const tierMax = {};
   for (let t = 1; t <= 5; t++) {
     tierMax[t] = Math.min(8, CardDatabase.getCardsByTier(t).length);
@@ -53,7 +53,7 @@ export async function mount(container, params = {}) {
     </div>
     <div class="deck-builder-layout">
       <div class="deck-slots-panel">
-        <p class="tier-hint">4 à 8 cartes par tier</p>
+        <p class="tier-hint" id="deck-total-hint">0/20 cartes · max 8 par tier</p>
         <div class="deck-tiers" id="deck-tiers"></div>
       </div>
       <div class="card-browser-panel">
@@ -87,10 +87,9 @@ export async function mount(container, params = {}) {
       const req    = tierMax[t];
       const filled = deckData[t];
       const isAct  = t === activeTier;
-      const isOk   = filled.length >= TIER_MIN;
       return `
         <div class="tier-row${isAct ? ' active' : ''}" data-tier="${t}">
-          <span class="tier-label badge badge-${TIER_COLOR[t]}${isOk ? ' tier-ok' : ''}">
+          <span class="tier-label badge badge-${TIER_COLOR[t]}">
             T${t}&nbsp;<span class="tier-count">${filled.length}/${req}</span>
           </span>
           <div class="tier-slots">
@@ -200,10 +199,12 @@ export async function mount(container, params = {}) {
   // ── Save validation ───────────────────────────────────────────────────────
 
   function updateSave() {
-    const hasName  = nameInput.value.trim().length > 0;
-    const allValid = [1, 2, 3, 4, 5].every(t =>
-      deckData[t].length >= TIER_MIN && deckData[t].length <= tierMax[t]);
-    btnSave.disabled = !(hasName && allValid);
+    const hasName   = nameInput.value.trim().length > 0;
+    const total     = [1, 2, 3, 4, 5].reduce((s, t) => s + deckData[t].length, 0);
+    const tierValid = [1, 2, 3, 4, 5].every(t => deckData[t].length <= tierMax[t]);
+    const hint = container.querySelector('#deck-total-hint');
+    if (hint) hint.textContent = `${total}/${DECK_MIN} cartes · max 8 par tier`;
+    btnSave.disabled = !(hasName && total >= DECK_MIN && tierValid);
   }
 
   // ── Events ────────────────────────────────────────────────────────────────

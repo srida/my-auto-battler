@@ -665,9 +665,10 @@ Validation `board.isOccupied(pos)` avant le drop.
 
 ## DeckBuilder
 
-Contrainte : 8 cartes par tier (ou `min(8, pool_size)` si le tier a moins de 8 cartes).
+- Maximum par tier : `min(8, pool_size)` cartes
+- Minimum pour sauvegarder : **20 cartes au total** (réparties librement entre les tiers, aucun minimum par tier)
 
-Validation bloquante : le deck ne peut être sauvegardé que si tous les tiers sont complets.
+Validation bloquante : le deck ne peut être sauvegardé que si le nom est renseigné et que le total ≥ 20.
 
 Mode édition : déclenché via `DeckRepository.setPendingEdit(deckName)` avant de naviguer vers DeckBuilder.
 
