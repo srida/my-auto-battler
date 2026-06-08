@@ -944,6 +944,8 @@ img {
   transition: all var(--transition-fast);
 }
 .tb-side-btn.active { color: var(--accent); border-bottom-color: var(--accent); background: #1c1840; }
+/* Keep archetype panel always in layout to avoid board shift when first unit is placed */
+.tb-board-col .archetype-panel:empty { display: flex; min-height: 44px; }
 .tb-board-col .board-area { flex: 1; min-height: 0; padding: 4px; overflow: hidden; display: flex; align-items: flex-start; justify-content: center; }
 /* TestBench: always 11 rows. constant = topbar(52)+side-toggle(30)+terrain-row(26)+arch-panel(44)+padding(8)+gaps(58)+margin(8) = 226px */
 .tb-board-col .board-grid {
