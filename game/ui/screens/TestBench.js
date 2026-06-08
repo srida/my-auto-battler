@@ -93,7 +93,7 @@ export async function mount(container) {
     powerDb: PowerDatabase,
     archetypeDb: ArchetypeDatabase,
   });
-  grid.expand(8);
+  grid.expand(11);
   grid.setBoard(board);
   grid.refresh();
 
@@ -333,12 +333,12 @@ export async function mount(container) {
     container.querySelector('#tb-speed-controls').style.display = 'none';
     if (!fromFinish) {
       grid.exitCombatMode();
-      grid.expand(8);
+      grid.expand(11);
       grid.setBoard(board);
       grid.refresh();
     } else {
       grid.exitCombatMode();
-      grid.expand(8);
+      grid.expand(11);
       grid.setBoard(board);
       grid.refresh();
     }
