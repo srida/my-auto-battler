@@ -20,12 +20,13 @@ const CARDS_FILE     = path.join(DATA_DIR, 'cards.json');
 const ARCHETYPES_FILE = path.join(DATA_DIR, 'archetypes.json');
 const POWERS_FILE    = path.join(DATA_DIR, 'powers.json');
 const BOARDS_FILE    = path.join(DATA_DIR, 'boards.json');
+const MAGIES_FILE    = path.join(DATA_DIR, 'magies.json');
 
 // --- Bootstrap: copy initial data to volume on first run ---
 function bootstrap() {
   fs.mkdirSync(DATA_DIR,  { recursive: true });
   fs.mkdirSync(ILLUS_DIR, { recursive: true });
-  for (const f of ['cards.json', 'archetypes.json', 'powers.json', 'boards.json']) {
+  for (const f of ['cards.json', 'archetypes.json', 'powers.json', 'boards.json', 'magies.json']) {
     const dest = path.join(DATA_DIR, f);
     const src  = path.join(INITIAL_DIR, f);
     if (!fs.existsSync(dest) && fs.existsSync(src)) {
@@ -413,6 +414,100 @@ app.delete('/api/boards/:id/illustration', requireAuth, (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// --- Magies API ---
+app.get('/api/magies', (req, res) => {
+  try {
+    const magies = readJson(MAGIES_FILE);
+    res.json(magies.map(m => ({ ...m, _has_illustration: illustrationExists(m.id) })));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/magies', requireAuth, (req, res) => {
+  try {
+    const magies = readJson(MAGIES_FILE);
+    const magie  = req.body;
+    if (!magie.id) return res.status(400).json({ error: 'id required' });
+    if (magies.find(m => m.id === magie.id)) return res.status(400).json({ error: `ID ${magie.id} already exists` });
+    delete magie._has_illustration;
+    magies.push(magie);
+    writeJson(MAGIES_FILE, magies);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/magies/import', requireAuth, (req, res) => {
+  try {
+    const { items, mode = 'skip' } = req.body;
+    if (!Array.isArray(items)) return res.status(400).json({ error: 'items doit être un tableau' });
+    const magies = readJson(MAGIES_FILE);
+    let added = 0, replaced = 0, skipped = 0;
+    const errors = [];
+    for (const item of items) {
+      if (!item.id) { errors.push('Élément sans ID ignoré'); continue; }
+      delete item._has_illustration;
+      const idx = magies.findIndex(m => m.id === item.id);
+      if (idx !== -1) {
+        if (mode === 'replace') { magies[idx] = item; replaced++; }
+        else skipped++;
+      } else {
+        magies.push(item);
+        added++;
+      }
+    }
+    writeJson(MAGIES_FILE, magies);
+    res.json({ ok: true, added, replaced, skipped, errors });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/magies/:id', requireAuth, (req, res) => {
+  try {
+    const magies = readJson(MAGIES_FILE);
+    const idx = magies.findIndex(m => m.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'Not found' });
+    const updated = req.body;
+    delete updated._has_illustration;
+    magies[idx] = updated;
+    writeJson(MAGIES_FILE, magies);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/magies/:id', requireAuth, (req, res) => {
+  try {
+    let magies = readJson(MAGIES_FILE);
+    const idx = magies.findIndex(m => m.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'Not found' });
+    magies.splice(idx, 1);
+    writeJson(MAGIES_FILE, magies);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/magies/:id/illustration', requireAuth, async (req, res) => {
+  const { url } = req.body;
+  if (!url) return res.status(400).json({ error: 'url required' });
+  const destPath = path.join(ILLUS_DIR, `${req.params.id}.png`);
+  try {
+    const imageBuffer = await downloadUrl(url);
+    let sharp;
+    try { sharp = require('sharp'); } catch (_) {}
+    if (sharp) {
+      await sharp(imageBuffer).png().toFile(destPath);
+    } else {
+      fs.writeFileSync(destPath, imageBuffer);
+    }
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/magies/:id/illustration', requireAuth, (req, res) => {
+  const filePath = path.join(ILLUS_DIR, `${req.params.id}.png`);
+  try {
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // --- Export API (pour la future sync locale) ---
 app.get('/api/export', (req, res) => {
   try {
@@ -420,13 +515,14 @@ app.get('/api/export', (req, res) => {
     const archetypes = readJson(ARCHETYPES_FILE);
     const powers     = readJson(POWERS_FILE);
     const boards     = readJson(BOARDS_FILE);
+    const magies     = readJson(MAGIES_FILE);
     const illustrations = fs.readdirSync(ILLUS_DIR)
       .filter(f => f.endsWith('.png'))
       .map(f => {
         const id = f.replace('.png', '');
         return { id, checksum: illustrationChecksum(id) };
       });
-    res.json({ cards, archetypes, powers, boards, illustrations });
+    res.json({ cards, archetypes, powers, boards, magies, illustrations });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
