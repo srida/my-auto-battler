@@ -31,12 +31,13 @@ Terminé :
 - Tous les systèmes d'invocation
 - Système de pouvoirs
 - Archetypes
-- Pathfinding
+- Pathfinding + ligne de vue (Bresenham)
 - IA ennemie
 - DeckBuilder + DeckSelector + MainMenu
 - Board UI + Préparation
 - Combat animé (requestAnimationFrame)
 - Support mobile (Pointer Events)
+- **Système de terrains (boards)** — cases bloquées, LOS, effets de terrain
 
 En cours :
 
@@ -64,6 +65,7 @@ Repo : `https://github.com/srida/my-auto-battler`
 | `GET /api/cards` | Public | 253 cartes |
 | `GET /api/archetypes` | Public | Archetypes |
 | `GET /api/powers` | Public | Pouvoirs |
+| `GET /api/boards` | Public | Terrains de combat |
 | `POST/PUT/DELETE /api/*` | Auth | Écriture admin |
 | `GET /illustrations/:id` | Public | Art des cartes (PNG sans extension) |
 | `POST /api/cards/import` | Auth | Import en masse (mode skip/replace) |
@@ -86,6 +88,7 @@ game/
 │   ├── CardDatabase.js      ← fetch /api/cards, cache mémoire
 │   ├── ArchetypeDatabase.js ← fetch /api/archetypes
 │   ├── PowerDatabase.js     ← fetch /api/powers
+│   ├── BoardDatabase.js     ← fetch /api/boards, cache mémoire
 │   └── DeckRepository.js   ← localStorage (same interface as Godot)
 ├── logic/
 │   ├── Unit.js              ← État runtime d'une unité
@@ -130,6 +133,11 @@ ArchetypeDatabase.archetypes    // Dictionary
 
 await PowerDatabase.init()
 PowerDatabase.getPower(id)
+
+await BoardDatabase.init()
+BoardDatabase.getBoard(id)
+BoardDatabase.getAllBoards()
+BoardDatabase.getRandomBoard()   // utilisé par GameScreen à chaque round de combat
 
 DeckRepository.saveDeck(name, deck)
 DeckRepository.loadDeck(name)
@@ -332,6 +340,108 @@ board.grid
 ```js
 board.grid[2][0]  // unité en colonne 2, rangée 0 (milieu haut, côté joueur)
 ```
+
+### Cases bloquées
+
+`Board.js` maintient un Set interne `_blockedCells` de clés `"col,row"`.
+
+```js
+board.setBlockedCells(cells)   // cells: [{col, row}, ...]
+board.clearBlockedCells()
+board.isBlocked(pos)           // → bool
+```
+
+`getNeighbors(pos)` exclut automatiquement les cases bloquées — le BFS les contourne donc sans modification.
+
+Les cases bloquées sont réinitialisées entre deux combats (`startPreparation()` dans GameScreen).
+
+---
+
+## Board Terrain (Terrains de combat)
+
+Chaque combat tire aléatoirement un terrain depuis `BoardDatabase`. Le terrain est actif uniquement pendant la phase de combat.
+
+### Modèle de données
+
+```json
+{
+  "id": "BOARD_001",
+  "name": "Désert Maudit",
+  "_has_illustration": true,
+  "blocked_cells": [{ "col": 2, "row": 5 }],
+  "effect": {
+    "type": "stat_bonus",
+    "stat": "atk",
+    "value": 10,
+    "target_archetypes": ["ARCH_DRAGON"]
+  }
+}
+```
+
+`effect` peut être `null` (aucun effet). `target_archetypes` vide = toutes les unités des deux joueurs.
+
+### Types d'effets supportés
+
+| `type` | Description |
+|---|---|
+| `stat_bonus` | Bonus additif permanent sur une stat (`stat`, `value`) |
+| `stat_modifier` | Multiplicateur de stat — converti en additif via `unit._base[stat] × (value - 1)` |
+| `shield` | Bouclier initial (`value`) |
+| `draw_bonus` | Pioche supplémentaire (`value` cartes) — GameScreen uniquement |
+
+Les effets sont appliqués via `applyStatBonus()` / `applyShield()`, donc nettoyés automatiquement par `resetCombatStats()` en fin de combat.
+
+### Ligne de vue (LOS)
+
+`PathFinder.js` expose :
+
+```js
+hasLineOfSight(board, from, to) → bool   // Bresenham sur _blockedCells
+canAttack(attacker, target, board)       // isInAttackRange() && hasLineOfSight()
+findAttackTarget(unit, enemies, board)   // préfère les cibles avec LOS
+```
+
+**Règles LOS :**
+- Si aucune case bloquée (`_blockedCells.size === 0`) → LOS toujours `true`
+- Une case bloquée sur la ligne entre attaquant et cible → LOS `false`
+- Une unité sans LOS sur sa cible **continue à se déplacer** vers elle (le check `canAttack` dans la boucle de mouvement force la progression)
+
+### Flux dans GameScreen
+
+```
+runCombat()
+  → BoardDatabase.getRandomBoard()
+  → board.setBlockedCells(boardData.blocked_cells)
+  → grid.setBlockedCells(boardData.blocked_cells)   // rendu CSS .blocked-cell
+  → _showBoardIndicator(boardData)                   // chip thumbnail+nom
+  → _applyBoardEffect(effect, playerUnits, enemyUnits)
+
+startPreparation()
+  → board.clearBlockedCells()
+  → grid.setBlockedCells([])
+  → _hideBoardIndicator()
+```
+
+### Indicateur de terrain (UI)
+
+Pendant le combat, un chip compact s'affiche **à droite des chips d'archetype** sur la même rangée (`game-header-row`). Il montre la miniature d'illustration et le nom du terrain. Un tap ouvre le tooltip complet (effet + archetypes ciblés par nom).
+
+```js
+// GameScreen.js
+_showBoardIndicator(boardData)   // stocke dans _currentBoardData, affiche le chip
+_hideBoardIndicator()
+
+// Tooltip.js
+Tooltip.boardHtml(board, archetypeDb)  // archetypeDb optionnel — résout les noms d'archetype
+```
+
+### TestBench
+
+TestBench expose un sélecteur de terrain manuel (dropdown `🗺️`) dans la colonne board. Sélectionner un terrain :
+1. Affiche les cases bloquées sur la grille immédiatement
+2. Active un bouton ℹ pour voir le tooltip du terrain
+3. Applique les effets au lancement du combat
+4. Les effets sont annulés (`resetCombatStats`) à l'arrêt du combat
 
 ---
 
@@ -564,6 +674,14 @@ Parmi les candidats de cette rangée :
 
 Aucun hasard. Le combat est entièrement déterministe.
 
+### Ligne de vue (LOS)
+
+Une unité ne peut attaquer que si elle a **ligne de vue** sur sa cible (algorithme de Bresenham sur les cases bloquées du terrain). `findAttackTarget` préfère les cibles avec LOS ; si aucune n'est accessible en LOS, l'unité continue à se déplacer vers la cible la plus proche jusqu'à obtenir LOS.
+
+```js
+canAttack(attacker, target, board) = isInAttackRange() && hasLineOfSight()
+```
+
 ### Initiative et ordre de jeu
 
 Au début de chaque step, les unités sont triées par :
@@ -587,6 +705,8 @@ Pathfinding BFS implémenté dans `PathFinder.js`.
 Les unités ne peuvent pas se chevaucher.
 
 Exception : les unités neutralisées peuvent temporairement rester jusqu'au nettoyage.
+
+Les **cases bloquées** (terrain) sont exclues par `Board.getNeighbors()` — le BFS les contourne automatiquement sans modification dans PathFinder.
 
 L'occupancy du board doit toujours être mise à jour lors d'un déplacement :
 
@@ -687,6 +807,7 @@ Différences avec `GameScreen` :
 - Board inspector : overlay live avec stats de toutes les unités pendant le combat
 - Unités ennemies masquées visuellement en phase de préparation post-combat
 - Bouton Pause pour le combat
+- **Sélecteur de terrain** : dropdown `🗺️` pour choisir un board manuellement — cases bloquées visibles immédiatement, effets appliqués au lancement du combat, bouton ℹ pour afficher le tooltip du terrain
 
 ---
 
