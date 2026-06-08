@@ -19,12 +19,13 @@ const INITIAL_DIR    = path.join(__dirname, 'initial-data');
 const CARDS_FILE     = path.join(DATA_DIR, 'cards.json');
 const ARCHETYPES_FILE = path.join(DATA_DIR, 'archetypes.json');
 const POWERS_FILE    = path.join(DATA_DIR, 'powers.json');
+const BOARDS_FILE    = path.join(DATA_DIR, 'boards.json');
 
 // --- Bootstrap: copy initial data to volume on first run ---
 function bootstrap() {
   fs.mkdirSync(DATA_DIR,  { recursive: true });
   fs.mkdirSync(ILLUS_DIR, { recursive: true });
-  for (const f of ['cards.json', 'archetypes.json', 'powers.json']) {
+  for (const f of ['cards.json', 'archetypes.json', 'powers.json', 'boards.json']) {
     const dest = path.join(DATA_DIR, f);
     const src  = path.join(INITIAL_DIR, f);
     if (!fs.existsSync(dest) && fs.existsSync(src)) {
@@ -326,19 +327,106 @@ app.delete('/api/powers/:id', (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// --- Boards API ---
+app.get('/api/boards', (req, res) => {
+  try {
+    const boards = readJson(BOARDS_FILE);
+    res.json(boards.map(b => ({ ...b, _has_illustration: illustrationExists(b.id) })));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/boards', requireAuth, (req, res) => {
+  try {
+    const boards = readJson(BOARDS_FILE);
+    const board  = req.body;
+    if (!board.id) return res.status(400).json({ error: 'id required' });
+    if (boards.find(b => b.id === board.id)) return res.status(400).json({ error: `ID ${board.id} already exists` });
+    boards.push(board);
+    writeJson(BOARDS_FILE, boards);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/boards/import', requireAuth, (req, res) => {
+  try {
+    const { items, mode = 'skip' } = req.body;
+    const boards = readJson(BOARDS_FILE);
+    let added = 0, replaced = 0, skipped = 0;
+    for (const item of items) {
+      const idx = boards.findIndex(b => b.id === item.id);
+      if (idx !== -1) {
+        if (mode === 'replace') { boards[idx] = item; replaced++; }
+        else skipped++;
+      } else {
+        boards.push(item); added++;
+      }
+    }
+    writeJson(BOARDS_FILE, boards);
+    res.json({ ok: true, added, replaced, skipped });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/boards/:id', requireAuth, (req, res) => {
+  try {
+    const boards = readJson(BOARDS_FILE);
+    const idx = boards.findIndex(b => b.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'Not found' });
+    boards[idx] = req.body;
+    writeJson(BOARDS_FILE, boards);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/boards/:id', requireAuth, (req, res) => {
+  try {
+    let boards = readJson(BOARDS_FILE);
+    const idx = boards.findIndex(b => b.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'Not found' });
+    boards.splice(idx, 1);
+    writeJson(BOARDS_FILE, boards);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/boards/:id/illustration', requireAuth, async (req, res) => {
+  const { url } = req.body;
+  if (!url) return res.status(400).json({ error: 'url required' });
+  const destPath = path.join(ILLUS_DIR, `${req.params.id}.png`);
+  try {
+    const imageBuffer = await downloadUrl(url);
+    let sharp;
+    try { sharp = require('sharp'); } catch (_) {}
+    if (sharp) {
+      await sharp(imageBuffer).png().toFile(destPath);
+    } else {
+      fs.writeFileSync(destPath, imageBuffer);
+    }
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/boards/:id/illustration', requireAuth, (req, res) => {
+  const filePath = path.join(ILLUS_DIR, `${req.params.id}.png`);
+  try {
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // --- Export API (pour la future sync locale) ---
 app.get('/api/export', (req, res) => {
   try {
     const cards      = readJson(CARDS_FILE);
     const archetypes = readJson(ARCHETYPES_FILE);
     const powers     = readJson(POWERS_FILE);
+    const boards     = readJson(BOARDS_FILE);
     const illustrations = fs.readdirSync(ILLUS_DIR)
       .filter(f => f.endsWith('.png'))
       .map(f => {
         const id = f.replace('.png', '');
         return { id, checksum: illustrationChecksum(id) };
       });
-    res.json({ cards, archetypes, powers, illustrations });
+    res.json({ cards, archetypes, powers, boards, illustrations });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

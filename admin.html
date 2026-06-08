@@ -339,6 +339,7 @@ select.filter:focus { border-color: var(--accent); }
       <button class="tab active" onclick="switchTab('cards')">Cartes</button>
       <button class="tab" onclick="switchTab('archetypes')">Archétypes</button>
       <button class="tab" onclick="switchTab('powers')">Pouvoirs</button>
+      <button class="tab" onclick="switchTab('boards')">Terrains</button>
       <button class="tab" onclick="switchTab('stats')">📊 Stats</button>
     </div>
   </div>
@@ -427,6 +428,26 @@ select.filter:focus { border-color: var(--accent); }
       <div class="empty"><span>Sélectionne un pouvoir</span></div>
     </div>
   </div>
+  <!-- BOARDS TAB -->
+  <div id="tab-boards" class="main hidden">
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="search" id="board-search" placeholder="Rechercher..." oninput="filterBoards()">
+          <span id="board-count" class="count">0</span>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-primary btn-sm" onclick="openNewBoard()">+ Nouveau terrain</button>
+          <button class="btn btn-secondary btn-sm" onclick="openImportModal('boards')">Importer JSON</button>
+        </div>
+      </div>
+      <div class="sidebar-list" id="board-list"></div>
+    </div>
+    <div class="content" id="board-detail">
+      <div class="empty"><span>Sélectionne un terrain</span></div>
+    </div>
+  </div>
+
   <!-- STATS TAB -->
   <div id="tab-stats" class="main hidden">
     <div class="content" id="stats-content" style="padding:24px;overflow-y:auto;width:100%">
@@ -448,23 +469,25 @@ select.filter:focus { border-color: var(--accent); }
 
 <script>
 // ================== STATE ==================
-let cards = [], archetypes = [], powers = [];
-let selectedCard = null, selectedArch = null, selectedPower = null;
+let cards = [], archetypes = [], powers = [], boards = [];
+let selectedCard = null, selectedArch = null, selectedPower = null, selectedBoard = null;
 let currentTab = 'cards';
-let isNewCard = false, isNewArch = false, isNewPower = false;
+let isNewCard = false, isNewArch = false, isNewPower = false, isNewBoard = false;
 let selectionMode = false;
 const bulkSelected = new Set();
 
 // ================== INIT ==================
 async function init() {
-  [cards, archetypes, powers] = await Promise.all([
+  [cards, archetypes, powers, boards] = await Promise.all([
     apiFetch('/api/cards'),
     apiFetch('/api/archetypes'),
     apiFetch('/api/powers'),
+    apiFetch('/api/boards'),
   ]);
   renderCardList();
   renderArchList();
   renderPowerList();
+  renderBoardList();
 }
 
 // ================== API ==================
@@ -488,6 +511,7 @@ function switchTab(tab) {
     const match = (tab === 'cards' && t.includes('carte')) ||
                   (tab === 'archetypes' && t.includes('archét')) ||
                   (tab === 'powers' && t.includes('pouv')) ||
+                  (tab === 'boards' && t.includes('terrain')) ||
                   (tab === 'stats' && t.includes('stat'));
     if (match) el.classList.add('active');
   });
@@ -2124,7 +2148,7 @@ async function confirmMassDelete() {
 let importType = null;
 let importItems = null;
 
-const IMPORT_LABELS = { cards: 'cartes', archetypes: 'archétypes', powers: 'pouvoirs' };
+const IMPORT_LABELS = { cards: 'cartes', archetypes: 'archétypes', powers: 'pouvoirs', boards: 'terrains' };
 
 function openImportModal(type) {
   importType = type;
@@ -2203,6 +2227,9 @@ async function confirmImport() {
   } else if (importType === 'powers') {
     powers = await apiFetch('/api/powers');
     filterPowers();
+  } else if (importType === 'boards') {
+    boards = await apiFetch('/api/boards');
+    filterBoards();
   }
 
   const parts = [];
@@ -2210,6 +2237,224 @@ async function confirmImport() {
   if (res.replaced) parts.push(`${res.replaced} remplacé${res.replaced !== 1 ? 's' : ''}`);
   if (res.skipped)  parts.push(`${res.skipped} ignoré${res.skipped !== 1 ? 's' : ''}`);
   toast(`Import terminé : ${parts.join(', ') || 'aucun changement'}`);
+}
+
+// ================== BOARDS ==================
+let _boardBlockedSet = new Set();
+
+function filterBoards() {
+  const q = document.getElementById('board-search').value.toLowerCase();
+  const filtered = boards.filter(b => !q || b.name.toLowerCase().includes(q) || b.id.toLowerCase().includes(q));
+  renderBoardList(filtered);
+}
+
+function renderBoardList(list = boards) {
+  document.getElementById('board-count').textContent = list.length;
+  document.getElementById('board-list').innerHTML = list.map(b => `
+    <div class="list-item ${selectedBoard && selectedBoard.id === b.id ? 'selected' : ''}" onclick="selectBoard('${b.id}')">
+      ${b._has_illustration
+        ? `<img src="/illustrations/${b.id}" style="width:40px;height:40px;object-fit:cover;border-radius:4px;flex-shrink:0" loading="lazy">`
+        : `<div style="width:40px;height:40px;background:var(--surface2);border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px">🗺️</div>`}
+      <div style="min-width:0">
+        <div class="item-name">${esc(b.name)}</div>
+        <div class="item-id">${b.id}${b.blocked_cells?.length ? ` · ${b.blocked_cells.length} case${b.blocked_cells.length>1?'s':''} bloquée${b.blocked_cells.length>1?'s':''}` : ''}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function selectBoard(id) {
+  selectedBoard = boards.find(b => b.id === id);
+  isNewBoard = false;
+  renderBoardList();
+  renderBoardDetail();
+  showDetail();
+}
+
+function renderBoardDetail() {
+  const b = selectedBoard;
+  _boardBlockedSet = new Set((b.blocked_cells || []).map(c => `${c.col},${c.row}`));
+  const el = document.getElementById('board-detail');
+  const effectJson = b.effect ? JSON.stringify(b.effect, null, 2) : '';
+  el.innerHTML = `
+    <button class="back-btn" onclick="showList()">Retour à la liste</button>
+    <div class="detail-title" style="margin-bottom:16px">🗺️ ${esc(b.name)}</div>
+
+    <div class="section-title">Identité</div>
+    <div class="form-grid">
+      <div class="field"><label>ID</label><input id="bf-id" value="${esc(b.id)}"></div>
+      <div class="field"><label>Nom</label><input id="bf-name" value="${esc(b.name)}"></div>
+    </div>
+    <div class="field" style="margin-top:12px"><label>Description</label><textarea id="bf-desc" rows="3">${esc(b.description || '')}</textarea></div>
+
+    <div class="section-title" style="margin-top:20px">Effet</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:8px">
+      JSON libre, même format que les effets d'archétype. Laisse vide pour aucun effet.
+      Ex : <code>{"type":"stat_bonus","stat":"atk","value":10,"target":"all"}</code>
+      <br>target : "all" | "player" | "enemy"
+    </p>
+    <div class="field"><textarea id="bf-effect" rows="5" style="font-family:monospace;font-size:12px">${esc(effectJson)}</textarea></div>
+
+    <div class="section-title" style="margin-top:20px">Cellules bloquées</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:8px">
+      Cliquez pour bloquer/débloquer une cellule. 🔵 Joueur · ⬛ Zone neutre · 🔴 Ennemi
+    </p>
+    <div id="bf-blocked-grid" style="display:inline-grid;grid-template-columns:repeat(5,28px);gap:2px;margin-bottom:4px"></div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:16px" id="bf-blocked-count">${_boardBlockedSet.size} cellule${_boardBlockedSet.size!==1?'s':''} bloquée${_boardBlockedSet.size!==1?'s':''}</div>
+
+    <div class="section-title" style="margin-top:4px">Illustration</div>
+    ${b._has_illustration
+      ? `<img src="/illustrations/${b.id}?t=${Date.now()}" style="width:120px;height:120px;object-fit:cover;border-radius:6px;margin-bottom:8px;display:block">`
+      : `<div style="width:120px;height:120px;background:var(--surface2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:36px;margin-bottom:8px">🗺️</div>`}
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px">
+      <input id="bf-illus-url" placeholder="URL de l'image…" style="flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:13px">
+      <button class="btn btn-secondary btn-sm" onclick="uploadBoardIllustration()">Importer</button>
+      ${b._has_illustration ? `<button class="btn btn-danger btn-sm" onclick="deleteBoardIllustration()">Supprimer</button>` : ''}
+    </div>
+
+    <div class="actions">
+      ${isNewBoard
+        ? `<button class="btn btn-success" onclick="createBoard()">Créer le terrain</button>
+           <button class="btn btn-secondary" onclick="cancelNewBoard()">Annuler</button>`
+        : `<button class="btn btn-primary" onclick="saveBoard()">Enregistrer</button>
+           <button class="btn btn-danger" onclick="deleteBoard()">Supprimer</button>`}
+    </div>
+  `;
+  _renderBlockedCellsGrid();
+}
+
+function _renderBlockedCellsGrid() {
+  const grid = document.getElementById('bf-blocked-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  for (let row = 10; row >= 0; row--) {
+    for (let col = 0; col < 5; col++) {
+      const key = `${col},${row}`;
+      const isBlocked = _boardBlockedSet.has(key);
+      const zone = row <= 3 ? 'player' : row <= 6 ? 'neutral' : 'enemy';
+      const bg = isBlocked
+        ? '#4a4a4a'
+        : zone === 'player'  ? '#0d2a45'
+        : zone === 'neutral' ? '#1a1a2e'
+        : '#3a0d0d';
+      const border = isBlocked ? '#aaa' : zone === 'player' ? '#1e4d78' : zone === 'neutral' ? '#333' : '#7a1e1e';
+      const cell = document.createElement('div');
+      cell.title = `col ${col}, row ${row}`;
+      cell.style.cssText = `width:28px;height:28px;border-radius:3px;cursor:pointer;display:flex;align-items:center;justify-content:center;background:${bg};border:1px solid ${border};font-size:13px;transition:opacity .1s`;
+      cell.textContent = isBlocked ? '✕' : '';
+      cell.addEventListener('click', () => {
+        if (_boardBlockedSet.has(key)) _boardBlockedSet.delete(key);
+        else _boardBlockedSet.add(key);
+        const countEl = document.getElementById('bf-blocked-count');
+        if (countEl) countEl.textContent = `${_boardBlockedSet.size} cellule${_boardBlockedSet.size!==1?'s':''} bloquée${_boardBlockedSet.size!==1?'s':''}`;
+        _renderBlockedCellsGrid();
+      });
+      grid.appendChild(cell);
+    }
+    if (row === 7 || row === 4) {
+      const sep = document.createElement('div');
+      sep.style.cssText = 'grid-column:1/-1;height:2px;background:var(--muted);opacity:0.4;margin:1px 0';
+      grid.appendChild(sep);
+    }
+  }
+}
+
+function _collectBoardFields() {
+  const effectRaw = document.getElementById('bf-effect').value.trim();
+  let effect = null;
+  if (effectRaw) {
+    try { effect = JSON.parse(effectRaw); }
+    catch (_) { toast('JSON d\'effet invalide', 'err'); return null; }
+  }
+  return {
+    id:            document.getElementById('bf-id').value.trim(),
+    name:          document.getElementById('bf-name').value.trim(),
+    description:   document.getElementById('bf-desc').value.trim(),
+    effect,
+    blocked_cells: [..._boardBlockedSet].map(k => { const [col, row] = k.split(','); return { col: +col, row: +row }; }),
+  };
+}
+
+async function saveBoard() {
+  const updated = _collectBoardFields();
+  if (!updated) return;
+  const oldId = selectedBoard.id;
+  const res = await apiFetch(`/api/boards/${oldId}`, { method: 'PUT', body: updated });
+  if (res.error) return toast(res.error, 'err');
+  const idx = boards.findIndex(b => b.id === oldId);
+  boards[idx] = { ...updated, _has_illustration: selectedBoard._has_illustration };
+  selectedBoard = boards[idx];
+  filterBoards();
+  renderBoardDetail();
+  toast('Terrain enregistré');
+}
+
+async function deleteBoard() {
+  if (!confirm(`Supprimer "${selectedBoard.name}" ?`)) return;
+  const res = await apiFetch(`/api/boards/${selectedBoard.id}`, { method: 'DELETE' });
+  if (res.error) return toast(res.error, 'err');
+  boards = boards.filter(b => b.id !== selectedBoard.id);
+  selectedBoard = null;
+  filterBoards();
+  document.getElementById('board-detail').innerHTML = '<div class="empty"><span>Sélectionne un terrain</span></div>';
+  showList();
+  toast('Terrain supprimé');
+}
+
+function openNewBoard() {
+  const nextNum = String(boards.length + 1).padStart(3, '0');
+  selectedBoard = { id: `BOARD_${nextNum}`, name: '', description: '', effect: null, blocked_cells: [], _has_illustration: false };
+  isNewBoard = true;
+  renderBoardList();
+  renderBoardDetail();
+  showDetail();
+}
+
+async function createBoard() {
+  const board = _collectBoardFields();
+  if (!board) return;
+  if (!board.id || !board.name) return toast('ID et nom requis', 'err');
+  const res = await apiFetch('/api/boards', { method: 'POST', body: board });
+  if (res.error) return toast(res.error, 'err');
+  boards.push({ ...board, _has_illustration: false });
+  selectedBoard = boards[boards.length - 1];
+  isNewBoard = false;
+  filterBoards();
+  renderBoardDetail();
+  toast('Terrain créé');
+}
+
+function cancelNewBoard() {
+  selectedBoard = null;
+  isNewBoard = false;
+  filterBoards();
+  document.getElementById('board-detail').innerHTML = '<div class="empty"><span>Sélectionne un terrain</span></div>';
+  showList();
+}
+
+async function uploadBoardIllustration() {
+  const url = document.getElementById('bf-illus-url').value.trim();
+  if (!url) return toast('URL requise', 'err');
+  const res = await apiFetch(`/api/boards/${selectedBoard.id}/illustration`, { method: 'POST', body: { url } });
+  if (res.error) return toast(res.error, 'err');
+  selectedBoard._has_illustration = true;
+  const idx = boards.findIndex(b => b.id === selectedBoard.id);
+  if (idx !== -1) boards[idx]._has_illustration = true;
+  renderBoardDetail();
+  renderBoardList();
+  toast('Illustration importée');
+}
+
+async function deleteBoardIllustration() {
+  if (!confirm('Supprimer l\'illustration ?')) return;
+  const res = await apiFetch(`/api/boards/${selectedBoard.id}/illustration`, { method: 'DELETE' });
+  if (res.error) return toast(res.error, 'err');
+  selectedBoard._has_illustration = false;
+  const idx = boards.findIndex(b => b.id === selectedBoard.id);
+  if (idx !== -1) boards[idx]._has_illustration = false;
+  renderBoardDetail();
+  renderBoardList();
+  toast('Illustration supprimée');
 }
 
 // ================== BOOT ==================
