@@ -93,6 +93,16 @@ export async function mount(container, params = {}) {
   const btnCombat  = container.querySelector('#btn-combat');
   const phaseLabel = container.querySelector('#phase-label');
 
+  // Keep --available-h in sync with the actual board-area height for the combat-mode CSS formula
+  const _boardResizeObserver = new ResizeObserver(entries => {
+    boardArea.style.setProperty('--available-h', entries[0].contentRect.height + 'px');
+  });
+  _boardResizeObserver.observe(boardArea);
+  container.querySelector('#btn-back').addEventListener('click', () => {
+    _boardResizeObserver.disconnect();
+    navigate('main_menu');
+  }, { once: true });
+
   // ── Components ───────────────────────────────────────────────────────────
 
   const grid = new BoardGrid(boardArea, {
@@ -856,8 +866,6 @@ export async function mount(container, params = {}) {
   }
 
   // ── Events ───────────────────────────────────────────────────────────────
-
-  container.querySelector('#btn-back').addEventListener('click', () => navigate('main_menu'));
 
   // Use pointerdown (not click) so the event fires reliably on iOS Safari
   btnCombat.addEventListener('pointerdown', e => {

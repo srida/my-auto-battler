@@ -727,14 +727,10 @@
 .speed-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
 /* ── Board combat mode ──────────────────────────────────────────── */
-/* max-width = (available_h - gap_h) * 5/11 + gap_w
-   available_h = 100dvh - topbar(52) - game-header(44) - speed-controls(57) - board-padding(12) = 165px
-   gap_h = 10 row-gaps(40) + 2 separators(18) = 58px  →  constant = 165+58+8(margin) = 231px
-   gap_w = 4 col-gaps × 4px = 16px
-   env(safe-area-inset-bottom) handles notched phones */
+/* --available-h is set by ResizeObserver on #board-area in GameScreen.js.
+   gap_h = 10 row-gaps(40) + 2 separators(18) = 58px; gap_w = 4 × 4px = 16px */
 .board-grid.combat-mode {
-  max-width: min(100%, calc((100vh - 231px) * 5 / 11 + 16px));
-  max-width: min(100%, calc((100dvh - 231px - env(safe-area-inset-bottom, 0px)) * 5 / 11 + 16px));
+  max-width: min(100%, calc((var(--available-h, 500px) - 58px) * 5 / 11 + 16px));
 }
 
 /* End-of-round overlay */
@@ -947,15 +943,9 @@ img {
 /* Keep archetype panel always in layout to avoid board shift when first unit is placed */
 .tb-board-col .archetype-panel:empty { display: flex; min-height: 44px; }
 .tb-board-col .board-area { flex: 1; min-height: 0; padding: 4px; overflow: hidden; display: flex; align-items: flex-start; justify-content: center; }
-/* TestBench: always 11 rows. constant = topbar(52)+side-toggle(30)+terrain-row(26)+arch-panel(44)+padding(8)+gaps(58)+margin(8) = 226px */
+/* --available-h is set by ResizeObserver on #tb-board-area in TestBench.js (prep + combat). */
 .tb-board-col .board-grid {
-  max-width: min(100%, calc((100vh - 226px) * 5 / 11 + 16px));
-  max-width: min(100%, calc((100dvh - 226px - env(safe-area-inset-bottom, 0px)) * 5 / 11 + 16px));
-}
-/* TestBench combat: also subtract speed-controls(57px) */
-.tb-board-col .board-grid.combat-mode {
-  max-width: min(100%, calc((100vh - 283px) * 5 / 11 + 16px));
-  max-width: min(100%, calc((100dvh - 283px - env(safe-area-inset-bottom, 0px)) * 5 / 11 + 16px));
+  max-width: min(100%, calc((var(--available-h, 500px) - 58px) * 5 / 11 + 16px));
 }
 
 /* Terrain selector row (TestBench) */

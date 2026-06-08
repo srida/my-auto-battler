@@ -106,6 +106,12 @@ export async function mount(container) {
   grid.setBoard(board);
   grid.refresh();
 
+  // Keep --available-h in sync with board-area height for the CSS max-width formula
+  const _boardResizeObserver = new ResizeObserver(entries => {
+    boardArea.style.setProperty('--available-h', entries[0].contentRect.height + 'px');
+  });
+  _boardResizeObserver.observe(boardArea);
+
   // ── Terrain selector ──────────────────────────────────────────────────────
 
   const boardSelect = container.querySelector('#tb-board-select');
@@ -429,6 +435,7 @@ export async function mount(container) {
   // ── Back ──────────────────────────────────────────────────────────────────
 
   container.querySelector('#tb-back').addEventListener('click', () => {
+    _boardResizeObserver.disconnect();
     if (phase === 'combat') stopCombat();
     navigate('main_menu');
   });
