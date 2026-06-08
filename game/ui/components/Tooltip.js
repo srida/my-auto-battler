@@ -131,7 +131,7 @@ export function archetypeHtml(arch, count, activeThreshold, cardDb = null) {
 }
 
 // Builds tooltip HTML for a board (terrain)
-export function boardHtml(board) {
+export function boardHtml(board, archetypeDb = null) {
   const e = board.effect;
   const STAT_LBL = { atk: 'ATK', hp: 'HP', movement_speed: 'Déplacement', attack_speed: "Vit. attaque", initiative: 'Initiative', range: 'Portée' };
   const TYPE_LBL = { stat_bonus: 'Bonus de stat', stat_modifier: 'Modificateur', shield: 'Bouclier', draw_bonus: 'Pioche +' };
@@ -143,16 +143,22 @@ export function boardHtml(board) {
     const statLine = e.stat
       ? `<span style="color:var(--accent)">${STAT_LBL[e.stat] || e.stat}</span> ${valStr}`
       : valStr;
-    const tgtLine  = !e.target_archetypes?.length
-      ? 'Toutes les unités (les 2 joueurs)'
-      : `${e.target_archetypes.length} archétype${e.target_archetypes.length > 1 ? 's' : ''} ciblé${e.target_archetypes.length > 1 ? 's' : ''}`;
+    let tgtLine;
+    if (!e.target_archetypes?.length) {
+      tgtLine = 'Toutes les unités (les 2 joueurs)';
+    } else if (archetypeDb) {
+      tgtLine = e.target_archetypes
+        .map(id => { const a = archetypeDb.getArchetype(id); return a ? `${a.icon ?? ''} ${a.name}` : id; })
+        .join(', ');
+    } else {
+      tgtLine = `${e.target_archetypes.length} archétype${e.target_archetypes.length > 1 ? 's' : ''} ciblé${e.target_archetypes.length > 1 ? 's' : ''}`;
+    }
     effectHtml = `
       <div style="font-size:11px;font-weight:600">${esc(typeLbl)}</div>
       <div style="font-size:13px;margin-top:2px">${statLine}</div>
       <div style="font-size:10px;color:var(--muted);margin-top:3px">${esc(tgtLine)}</div>`;
   }
 
-  const blockedCount = board.blocked_cells?.length || 0;
   const thumb = board._has_illustration
     ? `<img src="/illustrations/${board.id}" style="width:100%;border-radius:4px;margin-bottom:8px;max-height:90px;object-fit:cover;display:block">`
     : '';
@@ -162,7 +168,6 @@ export function boardHtml(board) {
       ${thumb}
       <div style="font-weight:700;font-size:13px;margin-bottom:6px">🗺️ ${esc(board.name)}</div>
       <div style="background:rgba(255,255,255,.05);border-radius:6px;padding:8px">${effectHtml}</div>
-      ${blockedCount ? `<div style="font-size:10px;color:var(--muted);margin-top:6px">🚫 ${blockedCount} cellule${blockedCount > 1 ? 's' : ''} bloquée${blockedCount > 1 ? 's' : ''} (zone neutre)</div>` : ''}
     </div>`;
 }
 

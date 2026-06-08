@@ -2,6 +2,7 @@ import { navigate } from '../../main.js';
 import * as CardDatabase from '../../data/CardDatabase.js';
 import * as PowerDatabase from '../../data/PowerDatabase.js';
 import * as ArchetypeDatabase from '../../data/ArchetypeDatabase.js';
+import * as BoardDatabase from '../../data/BoardDatabase.js';
 import { Board } from '../../logic/Board.js';
 import { Unit } from '../../logic/Unit.js';
 import { ArchetypeManager } from '../../logic/ArchetypeManager.js';
@@ -14,7 +15,7 @@ const TIERS = [1, 2, 3, 4, 5];
 const SUMMON_TYPES = ['normal', 'sacrifice', 'fusion', 'rituel', 'transformation'];
 
 export async function mount(container) {
-  await Promise.all([CardDatabase.init(), PowerDatabase.init(), ArchetypeDatabase.init()]);
+  await Promise.all([CardDatabase.init(), PowerDatabase.init(), ArchetypeDatabase.init(), BoardDatabase.init()]);
 
   const board = new Board();
   let selectedCard = null;         // card from browser
@@ -25,6 +26,7 @@ export async function mount(container) {
   let phase = 'prep';              // 'prep' | 'combat'
   let inspector = false;
   let _selectedBrowserBtn = null;  // currently selected browser card button
+  let selectedBoard = null;        // BoardDatabase entry | null
 
   // ── Shell ─────────────────────────────────────────────────────────────────
 
@@ -42,6 +44,13 @@ export async function mount(container) {
         <div class="tb-side-toggle">
           <button class="tb-side-btn active" data-side="player">Joueur</button>
           <button class="tb-side-btn"        data-side="enemy">Ennemi</button>
+        </div>
+        <div class="tb-terrain-row">
+          <span style="font-size:15px;flex-shrink:0">🗺️</span>
+          <select id="tb-board-select" class="tb-terrain-select">
+            <option value="">Aucun terrain</option>
+          </select>
+          <button id="tb-terrain-info" class="tb-terrain-info" style="display:none">ℹ</button>
         </div>
         <div class="archetype-panel" id="tb-archetype-panel"></div>
         <div class="board-area" id="tb-board-area"></div>
@@ -96,6 +105,33 @@ export async function mount(container) {
   grid.expand(11);
   grid.setBoard(board);
   grid.refresh();
+
+  // ── Terrain selector ──────────────────────────────────────────────────────
+
+  const boardSelect = container.querySelector('#tb-board-select');
+  const terrainInfo = container.querySelector('#tb-terrain-info');
+
+  for (const b of BoardDatabase.getAllBoards()) {
+    const opt = document.createElement('option');
+    opt.value = b.id;
+    opt.textContent = b.name;
+    boardSelect.appendChild(opt);
+  }
+
+  boardSelect.addEventListener('change', () => {
+    const id = boardSelect.value;
+    selectedBoard = id ? BoardDatabase.getBoard(id) : null;
+    const cells = selectedBoard?.blocked_cells || [];
+    board.setBlockedCells(cells);
+    grid.setBlockedCells(cells);
+    grid.refresh();
+    terrainInfo.style.display = selectedBoard ? '' : 'none';
+  });
+
+  terrainInfo.addEventListener('pointerdown', e => {
+    e.stopPropagation();
+    if (selectedBoard) Tooltip.toggle(Tooltip.boardHtml(selectedBoard, ArchetypeDatabase), terrainInfo);
+  });
 
   // ── Interaction ───────────────────────────────────────────────────────────
 
@@ -226,6 +262,24 @@ export async function mount(container) {
     }
   }
 
+  function _applyBoardEffect(effect, playerUnits, enemyUnits) {
+    const all = [...playerUnits, ...enemyUnits];
+    const targets = effect.target_archetypes?.length
+      ? all.filter(u => u.archetypes.some(a => effect.target_archetypes.includes(a)))
+      : all;
+    switch (effect.type) {
+      case 'stat_bonus':
+        for (const u of targets) u.applyStatBonus(effect.stat, effect.value);
+        break;
+      case 'stat_modifier':
+        for (const u of targets) u.applyStatBonus(effect.stat, Math.round(u._base[effect.stat] * (effect.value - 1)));
+        break;
+      case 'shield':
+        for (const u of targets) u.applyShield(effect.value);
+        break;
+    }
+  }
+
   function _refreshArchetypePanel() {
     const panel = container.querySelector('#tb-archetype-panel');
     if (!panel) return;
@@ -268,6 +322,8 @@ export async function mount(container) {
   container.querySelector('#tb-clear').addEventListener('click', () => {
     if (phase === 'combat') stopCombat();
     board.grid = board._emptyGrid();
+    // Keep blocked cells from selected terrain
+    grid.setBlockedCells(selectedBoard?.blocked_cells || []);
     grid.refresh();
   });
 
@@ -283,6 +339,8 @@ export async function mount(container) {
     const archetypeList = ArchetypeDatabase.getAllArchetypes();
     const archetypeManager = new ArchetypeManager(archetypeList, playerUnits, enemyUnits);
     archetypeManager.applyStartOfCombat();
+
+    if (selectedBoard?.effect) _applyBoardEffect(selectedBoard.effect, playerUnits, enemyUnits);
 
     const combat = new CombatManager(board, playerUnits, enemyUnits, archetypeManager);
 
@@ -331,17 +389,17 @@ export async function mount(container) {
     container.querySelector('#tb-combat').textContent = '▶ Combat';
     container.querySelector('#tb-clear').disabled = false;
     container.querySelector('#tb-speed-controls').style.display = 'none';
-    if (!fromFinish) {
-      grid.exitCombatMode();
-      grid.expand(11);
-      grid.setBoard(board);
-      grid.refresh();
-    } else {
-      grid.exitCombatMode();
-      grid.expand(11);
-      grid.setBoard(board);
-      grid.refresh();
-    }
+
+    // Reset combat stat bonuses on survivors
+    [...board.getLivingUnitsOnSide('player'), ...board.getLivingUnitsOnSide('enemy')]
+      .forEach(u => u.resetCombatStats());
+
+    grid.exitCombatMode();
+    grid.expand(11);
+    grid.setBoard(board);
+    // Restore terrain blocked cells (exitCombatMode rebuilds DOM but _blockedCells persists)
+    grid.setBlockedCells(selectedBoard?.blocked_cells || []);
+    grid.refresh();
   }
 
   function renderInspector(units) {

@@ -108,7 +108,7 @@ export async function mount(container, params = {}) {
   // Board indicator tap → tooltip
   container.querySelector('#board-indicator').addEventListener('pointerdown', e => {
     e.stopPropagation();
-    if (_currentBoardData) Tooltip.show(Tooltip.boardHtml(_currentBoardData), container.querySelector('#board-indicator'));
+    if (_currentBoardData) Tooltip.show(Tooltip.boardHtml(_currentBoardData, ArchetypeDatabase), container.querySelector('#board-indicator'));
   });
 
   handArea.className = 'hand-ui-wrap';
