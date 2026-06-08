@@ -3,6 +3,7 @@ import * as CardDatabase from '../../data/CardDatabase.js';
 import * as DeckRepository from '../../data/DeckRepository.js';
 import * as PowerDatabase from '../../data/PowerDatabase.js';
 import * as ArchetypeDatabase from '../../data/ArchetypeDatabase.js';
+import * as BoardDatabase from '../../data/BoardDatabase.js';
 import { Board } from '../../logic/Board.js';
 import { GameState, Phase } from '../../logic/GameState.js';
 import { EnemyAI } from '../../logic/EnemyAI.js';
@@ -18,7 +19,7 @@ import * as Tooltip from '../components/Tooltip.js';
 const HAND_SIZE = 5;
 
 export async function mount(container, params = {}) {
-  await Promise.all([CardDatabase.init(), PowerDatabase.init(), ArchetypeDatabase.init()]);
+  await Promise.all([CardDatabase.init(), PowerDatabase.init(), ArchetypeDatabase.init(), BoardDatabase.init()]);
 
   const deckName = params.deckName || DeckRepository.getActiveDeck();
   if (!deckName) { navigate('deck_selector'); return; }
@@ -64,6 +65,7 @@ export async function mount(container, params = {}) {
     </div>
     <div class="game-layout">
       <div class="archetype-panel" id="archetype-panel"></div>
+      <div id="board-indicator" class="board-indicator-row" style="display:none"></div>
       <div class="board-area" id="board-area"></div>
       <div class="graveyard-area" id="graveyard-area" style="display:none">
         <span class="graveyard-label">Cimetière</span>
@@ -100,6 +102,12 @@ export async function mount(container, params = {}) {
     archetypeDb: ArchetypeDatabase,
   });
   grid.setBoard(board);
+
+  // Board indicator tap → tooltip
+  container.querySelector('#board-indicator').addEventListener('pointerdown', e => {
+    e.stopPropagation();
+    if (_currentBoardData) Tooltip.show(Tooltip.boardHtml(_currentBoardData), container.querySelector('#board-indicator'));
+  });
 
   handArea.className = 'hand-ui-wrap';
   const handInner = document.createElement('div');
@@ -525,9 +533,63 @@ export async function mount(container, params = {}) {
     setTimeout(() => { phaseLabel.textContent = prev; phaseLabel.style.color = prevColor; }, 2000);
   }
 
+  // ── Board terrain ─────────────────────────────────────────────────────────
+
+  let _currentBoardData = null;
+
+  function _showBoardIndicator(boardData) {
+    _currentBoardData = boardData;
+    const el = container.querySelector('#board-indicator');
+    if (!el || !boardData) return;
+    const thumb = boardData._has_illustration
+      ? `<img src="/illustrations/${boardData.id}" style="width:32px;height:32px;object-fit:cover;border-radius:4px;flex-shrink:0" alt="">`
+      : `<span style="font-size:22px;flex-shrink:0;line-height:1">🗺️</span>`;
+    const effectIcon = boardData.effect
+      ? `<span style="font-size:13px">${{ stat_bonus:'📈', stat_modifier:'✨', shield:'🛡️', draw_bonus:'🃏' }[boardData.effect.type] || '⚡'}</span>`
+      : '';
+    const blockedBadge = boardData.blocked_cells?.length
+      ? `<span style="font-size:10px;color:var(--muted)">✕${boardData.blocked_cells.length}</span>`
+      : '';
+    el.innerHTML = `${thumb}<span style="font-size:12px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${boardData.name}</span>${effectIcon}${blockedBadge}<span style="font-size:11px;color:var(--muted)">ℹ</span>`;
+    el.style.display = 'flex';
+  }
+
+  function _hideBoardIndicator() {
+    const el = container.querySelector('#board-indicator');
+    if (el) el.style.display = 'none';
+    _currentBoardData = null;
+  }
+
+  function _applyBoardEffect(effect, playerUnits, enemyUnits) {
+    const allUnits = [...playerUnits, ...enemyUnits];
+    const targets = effect.target_archetypes?.length
+      ? allUnits.filter(u => u.archetypes.some(a => effect.target_archetypes.includes(a)))
+      : allUnits;
+    switch (effect.type) {
+      case 'stat_bonus':
+        for (const u of targets) u.applyStatBonus(effect.stat, effect.value);
+        break;
+      case 'stat_modifier':
+        // Convert multiplicative to additive equivalent so resetCombatStats() cleans it up
+        for (const u of targets) u.applyStatBonus(effect.stat, Math.round(u._base[effect.stat] * (effect.value - 1)));
+        break;
+      case 'shield':
+        for (const u of targets) u.applyShield(effect.value);
+        break;
+      case 'draw_bonus':
+        gameState.player_extra_draws = (gameState.player_extra_draws || 0) + effect.value;
+        break;
+    }
+  }
+
   // ── Preparation ──────────────────────────────────────────────────────────
 
   function startPreparation() {
+    // Clear board terrain from previous combat
+    board.clearBlockedCells();
+    grid.setBlockedCells([]);
+    _hideBoardIndicator();
+
     phaseLabel.textContent = `Prépa — Tour ${gameState.round}`;
     phaseLabel.style.color = '';
     btnCombat.textContent = 'Lancer le combat';
@@ -586,6 +648,12 @@ export async function mount(container, params = {}) {
     phaseLabel.textContent = `Combat — Tour ${gameState.round}`;
     phaseLabel.style.color = '';
 
+    // ── Board selection ───────────────────────────────────────────────────
+    const boardData = BoardDatabase.getRandomBoard();
+    board.setBlockedCells(boardData?.blocked_cells || []);
+    grid.setBlockedCells(boardData?.blocked_cells || []);
+    _showBoardIndicator(boardData);
+
     // Multipliers (enemy hand and units already set during preparation)
     gameState.startCombat(hand.length, enemyHand.length);
     _showCombatMultipliers();
@@ -595,6 +663,10 @@ export async function mount(container, params = {}) {
     const archetypeList = ArchetypeDatabase.getAllArchetypes();
     const archetypeManager = new ArchetypeManager(archetypeList, playerUnits, enemyUnits);
     archetypeManager.applyStartOfCombat();
+
+    // Apply board effects to all units (after archetype bonuses)
+    if (boardData?.effect) _applyBoardEffect(boardData.effect, playerUnits, enemyUnits);
+
     setTimeout(() => _flashArchetypeChips(), 120);
 
     const combat = new CombatManager(board, playerUnits, enemyUnits, archetypeManager);

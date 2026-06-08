@@ -19,3 +19,8 @@ export function getAllBoards() {
   if (!_initialized) throw new Error('BoardDatabase not initialized');
   return _boards;
 }
+
+export function getRandomBoard() {
+  if (!_initialized || _boards.length === 0) return null;
+  return _boards[Math.floor(Math.random() * _boards.length)];
+}

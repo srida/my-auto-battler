@@ -3,6 +3,7 @@ export class Board {
     this.cols = 5;
     this.rows = 11; // rows 0–3 player, 4–6 neutral, 7–10 enemy
     this.grid = this._emptyGrid();
+    this._blockedCells = new Set();
   }
 
   _emptyGrid() {
@@ -72,14 +73,27 @@ export class Board {
     return this.getUnitsOnSide(side).filter(u => u.isAlive());
   }
 
-  // Neighbours (4-directional) within bounds
+  // Blocked cells (rows 4–6 neutral zone)
+  setBlockedCells(cells) {
+    this._blockedCells = new Set((cells || []).map(c => `${c.col},${c.row}`));
+  }
+
+  isBlocked(pos) {
+    return this._blockedCells.has(`${pos.col},${pos.row}`);
+  }
+
+  clearBlockedCells() {
+    this._blockedCells = new Set();
+  }
+
+  // Neighbours (4-directional) within bounds, excluding blocked cells
   getNeighbors(pos) {
     return [
       { col: pos.col - 1, row: pos.row },
       { col: pos.col + 1, row: pos.row },
       { col: pos.col, row: pos.row - 1 },
       { col: pos.col, row: pos.row + 1 },
-    ].filter(p => this.isInBounds(p));
+    ].filter(p => this.isInBounds(p) && !this.isBlocked(p));
   }
 
   // Rebuild grid from a unit list (after combat cleanup)

@@ -1,4 +1,4 @@
-import { chebyshevDistance, findClosestEnemy, findAttackTarget, isInAttackRange, stepToward } from './PathFinder.js';
+import { chebyshevDistance, findClosestEnemy, findAttackTarget, isInAttackRange, canAttack, stepToward } from './PathFinder.js';
 
 // Power constants
 const POWER_SUPER_ATTACK_MULT = 3;
@@ -99,7 +99,7 @@ export class CombatManager {
         (a, b) => chebyshevDistance(u.position, a.position) - chebyshevDistance(u.position, b.position)
       );
       for (const target of sorted) {
-        if (isInAttackRange(u, target)) break; // already in range — no move needed
+        if (canAttack(u, target, this.board)) break; // in range and has line of sight
         const next = stepToward(this.board, u.position, target.position);
         if (next && !this.board.isOccupied(next)) {
           const from = { ...u.position };
@@ -120,8 +120,8 @@ export class CombatManager {
 
       const enemies = this._enemies(u).filter(e => e.isAlive());
       if (enemies.length === 0) continue;
-      const { unit: target } = findAttackTarget(u, enemies);
-      if (!isInAttackRange(u, target)) continue; // out of attack range this tick
+      const { unit: target } = findAttackTarget(u, enemies, this.board);
+      if (!canAttack(u, target, this.board)) continue; // out of range or no line of sight
 
       if (u.isPowerReady()) {
         u.power_gauge = 0;
@@ -246,7 +246,7 @@ export class CombatManager {
     let pushed = 0;
     for (let i = 0; i < cells; i++) {
       const next = { col: target.position.col + dirCol, row: target.position.row + dirRow };
-      if (!this.board.isInBounds(next) || this.board.isOccupied(next)) break;
+      if (!this.board.isInBounds(next) || this.board.isOccupied(next) || this.board.isBlocked(next)) break;
       this.board.moveUnit(target, next);
       pushed++;
     }

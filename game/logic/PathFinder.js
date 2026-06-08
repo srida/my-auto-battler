@@ -76,15 +76,46 @@ export function isInAttackRange(attacker, target) {
 }
 
 /**
+ * Bresenham line-of-sight check: returns false if any blocked cell lies
+ * on the straight line between `from` and `to` (endpoints excluded).
+ */
+export function hasLineOfSight(board, from, to) {
+  if (!board || board._blockedCells.size === 0) return true;
+  let x = from.col, y = from.row;
+  const x1 = to.col, y1 = to.row;
+  const dx = Math.abs(x1 - x), dy = Math.abs(y1 - y);
+  const sx = x < x1 ? 1 : -1, sy = y < y1 ? 1 : -1;
+  let err = dx - dy;
+  while (x !== x1 || y !== y1) {
+    const e2 = 2 * err;
+    if (e2 > -dy) { err -= dy; x += sx; }
+    if (e2 < dx)  { err += dx; y += sy; }
+    if (x === x1 && y === y1) break; // reached target — don't check it
+    if (board.isBlocked({ col: x, row: y })) return false;
+  }
+  return true;
+}
+
+/**
+ * Returns true if `attacker` is in range AND has line of sight to `target`.
+ */
+export function canAttack(attacker, target, board = null) {
+  return isInAttackRange(attacker, target) && hasLineOfSight(board, attacker.position, target.position);
+}
+
+/**
  * Find the best attack target for `unit` among `enemies`.
- * Uses Manhattan distance for all range values.
+ * Prefers targets with line of sight when a board is provided.
  * Returns { unit, distance } or null.
  */
-export function findAttackTarget(unit, enemies) {
-  let best = null;
-  let bestDist = Infinity;
-  for (const e of enemies) {
-    if (!e.isAlive()) continue;
+export function findAttackTarget(unit, enemies, board = null) {
+  const alive = enemies.filter(e => e.isAlive());
+  // Prefer targets with line of sight; fall back to all alive if none have LOS
+  const losAlive = board ? alive.filter(e => hasLineOfSight(board, unit.position, e.position)) : alive;
+  const pool = losAlive.length > 0 ? losAlive : alive;
+
+  let best = null, bestDist = Infinity;
+  for (const e of pool) {
     const d = manhattanDistance(unit.position, e.position);
     if (d < bestDist) { bestDist = d; best = e; }
   }

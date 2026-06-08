@@ -18,6 +18,7 @@ export class BoardGrid {
     this._highlighted = new Set();         // "col,row" — valid placement cells (blue)
     this._materialCandidates = new Set();  // "col,row" — selectable material units (yellow border)
     this._materialSelected = new Set();    // "col,row" — selected material units (yellow solid)
+    this._blockedCells = new Set();        // "col,row" — impassable board cells
     this._selectedPos = null;              // { col, row } | null
     this._el = null;
     this._frozen = false;
@@ -25,6 +26,11 @@ export class BoardGrid {
   }
 
   setBoard(board) { this._board = board; }
+
+  setBlockedCells(cells) {
+    this._blockedCells = new Set((cells || []).map(c => `${c.col},${c.row}`));
+    if (!this._frozen) this.refresh();
+  }
 
   setHighlight(cells) {
     this._highlighted = new Set(cells.map(p => `${p.col},${p.row}`));
@@ -102,12 +108,14 @@ export class BoardGrid {
       const isMatCand = this._materialCandidates.has(key);
       const isMatSel  = this._materialSelected.has(key);
 
+      const isBlocked = this._blockedCells.has(key);
       cell.className = 'board-cell'
         + (isHl      ? ' highlighted' : '')
         + (isSel     ? ' selected-cell' : '')
         + (isMatCand ? ' material-candidate' : '')
         + (isMatSel  ? ' material-selected-cell' : '')
-        + (unit      ? ' occupied' : '');
+        + (unit      ? ' occupied' : '')
+        + (isBlocked ? ' blocked-cell' : '');
 
       if (this._displayRows === 11 && row === 7) cell.classList.add('enemy-front');
       if (this._displayRows === 11 && row === 3) cell.classList.add('player-front');
@@ -160,6 +168,7 @@ export class BoardGrid {
 
         cell.addEventListener('pointerdown', e => {
           if (e.target.closest('.unit-card')) return;
+          if (this._blockedCells.has(`${col},${row}`)) return;
           this._onCellTap?.({ col, row });
         });
 

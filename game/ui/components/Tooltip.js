@@ -130,6 +130,42 @@ export function archetypeHtml(arch, count, activeThreshold, cardDb = null) {
   `;
 }
 
+// Builds tooltip HTML for a board (terrain)
+export function boardHtml(board) {
+  const e = board.effect;
+  const STAT_LBL = { atk: 'ATK', hp: 'HP', movement_speed: 'Déplacement', attack_speed: "Vit. attaque", initiative: 'Initiative', range: 'Portée' };
+  const TYPE_LBL = { stat_bonus: 'Bonus de stat', stat_modifier: 'Modificateur', shield: 'Bouclier', draw_bonus: 'Pioche +' };
+
+  let effectHtml = `<div style="color:var(--muted);font-size:11px">Aucun effet</div>`;
+  if (e) {
+    const typeLbl = TYPE_LBL[e.type] || e.type;
+    const valStr  = e.type === 'stat_modifier' ? `×${e.value}` : (e.value >= 0 ? `+${e.value}` : `${e.value}`);
+    const statLine = e.stat
+      ? `<span style="color:var(--accent)">${STAT_LBL[e.stat] || e.stat}</span> ${valStr}`
+      : valStr;
+    const tgtLine  = !e.target_archetypes?.length
+      ? 'Toutes les unités (les 2 joueurs)'
+      : `${e.target_archetypes.length} archétype${e.target_archetypes.length > 1 ? 's' : ''} ciblé${e.target_archetypes.length > 1 ? 's' : ''}`;
+    effectHtml = `
+      <div style="font-size:11px;font-weight:600">${esc(typeLbl)}</div>
+      <div style="font-size:13px;margin-top:2px">${statLine}</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:3px">${esc(tgtLine)}</div>`;
+  }
+
+  const blockedCount = board.blocked_cells?.length || 0;
+  const thumb = board._has_illustration
+    ? `<img src="/illustrations/${board.id}" style="width:100%;border-radius:4px;margin-bottom:8px;max-height:90px;object-fit:cover;display:block">`
+    : '';
+
+  return `
+    <div style="display:flex;flex-direction:column;gap:2px;max-width:200px">
+      ${thumb}
+      <div style="font-weight:700;font-size:13px;margin-bottom:6px">🗺️ ${esc(board.name)}</div>
+      <div style="background:rgba(255,255,255,.05);border-radius:6px;padding:8px">${effectHtml}</div>
+      ${blockedCount ? `<div style="font-size:10px;color:var(--muted);margin-top:6px">🚫 ${blockedCount} cellule${blockedCount > 1 ? 's' : ''} bloquée${blockedCount > 1 ? 's' : ''} (zone neutre)</div>` : ''}
+    </div>`;
+}
+
 function _describeEffects(effects, cardDb) {
   return (effects ?? []).map(e => {
     switch (e.type) {
