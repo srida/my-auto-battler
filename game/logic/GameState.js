@@ -6,10 +6,8 @@ export const Phase = Object.freeze({
 });
 
 const MAX_ROUNDS = 5;
-const STARTING_HP = 30;
+const STARTING_HP = 1000;
 const DEFAULT_BOARD_SLOTS = 5;
-// Base damage when all enemies are wiped: survivors × 2
-const SURVIVOR_DAMAGE_PER_UNIT = 2;
 
 export class GameState {
   constructor() {
@@ -46,20 +44,17 @@ export class GameState {
   /**
    * Apply the result of a finished combat round.
    * @param {'player'|'enemy'|'draw'} winner
-   * @param {number} playerSurvivors  - living player units count
-   * @param {number} enemySurvivors   - living enemy units count
-   * @param {Object} archetypeResult  - from ArchetypeManager.applyEndOfCombat()
+   * @param {number} playerSurvivorsAtk  - sum of ATK of surviving player units
+   * @param {number} enemySurvivorsAtk   - sum of ATK of surviving enemy units
+   * @param {Object} archetypeResult     - from ArchetypeManager.applyEndOfCombat()
    */
-  applyEndOfCombat(winner, playerSurvivors, enemySurvivors, archetypeResult = {}) {
+  applyEndOfCombat(winner, playerSurvivorsAtk, enemySurvivorsAtk, archetypeResult = {}) {
     this.phase = Phase.END_ROUND;
 
     if (winner === 'player') {
-      // Enemy takes damage: surviving player units × constant, scaled by multiplier
-      const rawDmg = Math.max(1, playerSurvivors * SURVIVOR_DAMAGE_PER_UNIT);
-      this.enemy_hp -= Math.round(rawDmg * this.player_multiplier);
+      this.enemy_hp -= Math.round(playerSurvivorsAtk * this.player_multiplier);
     } else if (winner === 'enemy') {
-      const rawDmg = Math.max(1, enemySurvivors * SURVIVOR_DAMAGE_PER_UNIT);
-      this.player_hp -= Math.round(rawDmg * this.enemy_multiplier);
+      this.player_hp -= Math.round(enemySurvivorsAtk * this.enemy_multiplier);
     }
     // draw: no damage
 

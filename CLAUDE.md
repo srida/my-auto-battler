@@ -207,7 +207,10 @@ Fin de partie :
 
 **HP des joueurs : 1000.**
 
-À la fin de la phase de combat, les dégâts infligés = somme des ATK des unités survivantes ennemies × multiplicateur.
+À la fin de la phase de combat :
+```js
+damage = sum(unit.atk for unit of survivingEnemyUnits) × multiplier
+```
 
 ---
 
@@ -389,9 +392,17 @@ Survivantes :
 
 **À la fin du combat, les dégâts sont appliqués :**
 ```js
-damage = sum(unit.atk for unit of activeEnemyUnits) * multiplier
-gameState.player_hp -= damage
+// winner = 'player' → l'ennemi prend des dégâts
+enemy_hp -= round(sum(survivingPlayerUnits.atk) × player_multiplier)
+
+// winner = 'enemy' → le joueur prend des dégâts
+player_hp -= round(sum(survivingEnemyUnits.atk) × enemy_multiplier)
+
+// draw → aucun dégât
 ```
+
+`applyEndOfCombat(winner, playerSurvivorsAtk, enemySurvivorsAtk, archetypeResult)`
+— reçoit la somme d'ATK, pas un nombre d'unités.
 
 Effets des pouvoirs : prennent fin à la fin du combat (sauf indication contraire).
 

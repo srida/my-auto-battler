@@ -55,9 +55,11 @@ export async function mount(container, params = {}) {
       <button class="topbar-back" id="btn-back">←</button>
       <span class="topbar-title" id="phase-label">Préparation</span>
       <div class="game-hud">
-        <span class="hud-hp player" id="hud-player">♥ 30</span>
+        <span class="hud-hp player" id="hud-player">♥ 1000</span>
+        <span class="hud-mult player" id="hud-player-mult" style="display:none">×1.0</span>
         <span class="hud-round" id="hud-round">1/5</span>
-        <span class="hud-hp enemy" id="hud-enemy">♥ 30</span>
+        <span class="hud-mult enemy" id="hud-enemy-mult" style="display:none">×1.0</span>
+        <span class="hud-hp enemy" id="hud-enemy">♥ 1000</span>
       </div>
     </div>
     <div class="game-layout">
@@ -501,6 +503,20 @@ export async function mount(container, params = {}) {
     container.querySelector('#hud-round').textContent  = `${gameState.round}/5`;
   }
 
+  function _showCombatMultipliers() {
+    const pm = container.querySelector('#hud-player-mult');
+    const em = container.querySelector('#hud-enemy-mult');
+    pm.textContent = `×${gameState.player_multiplier.toFixed(1)}`;
+    em.textContent = `×${gameState.enemy_multiplier.toFixed(1)}`;
+    pm.style.display = '';
+    em.style.display = '';
+  }
+
+  function _hideCombatMultipliers() {
+    container.querySelector('#hud-player-mult').style.display = 'none';
+    container.querySelector('#hud-enemy-mult').style.display = 'none';
+  }
+
   function _flashError(msg) {
     const prev = phaseLabel.textContent;
     const prevColor = phaseLabel.style.color;
@@ -572,6 +588,7 @@ export async function mount(container, params = {}) {
 
     // Multipliers (enemy hand and units already set during preparation)
     gameState.startCombat(hand.length, enemyHand.length);
+    _showCombatMultipliers();
 
     // Player units + archetypes
     const playerUnits = board.getLivingUnitsOnSide('player');
@@ -638,9 +655,9 @@ export async function mount(container, params = {}) {
     if (hasArchEffects) _flashArchetypeChips();
 
     const winner = combat.winner ?? 'draw';
-    const playerSurvivors = playerUnits.filter(u => !u.is_neutralized).length;
-    const enemySurvivors  = enemyUnits.filter(u => !u.is_neutralized).length;
-    gameState.applyEndOfCombat(winner, playerSurvivors, enemySurvivors, archetypeResult);
+    const playerSurvivorsAtk = playerUnits.filter(u => !u.is_neutralized).reduce((s, u) => s + u.atk, 0);
+    const enemySurvivorsAtk  = enemyUnits.filter(u => !u.is_neutralized).reduce((s, u) => s + u.atk, 0);
+    gameState.applyEndOfCombat(winner, playerSurvivorsAtk, enemySurvivorsAtk, archetypeResult);
 
     // Remove dead enemy units; surviving ones stay on board
     for (const u of enemyUnits) {
@@ -703,6 +720,7 @@ export async function mount(container, params = {}) {
     }
 
     // Restore preparation UI
+    _hideCombatMultipliers();
     grid.exitCombatMode();
     handArea.style.display = '';
     const sc = container.querySelector('#speed-controls');
