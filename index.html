@@ -231,10 +231,12 @@
   padding: 4px 8px;
   overflow-x: auto;
   scrollbar-width: none;
-  flex: 1;
+  flex-shrink: 0;
   align-items: center;
   min-height: 0;
 }
+/* In GameScreen's header row (row flex), the panel expands horizontally */
+.game-header-row .archetype-panel { flex: 1; }
 .archetype-panel:empty { display: none; }
 .archetype-panel:not(:empty) { min-height: 44px; }
 .archetype-panel::-webkit-scrollbar { display: none; }
