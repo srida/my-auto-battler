@@ -563,6 +563,12 @@ Parmi les candidats de cette rangée :
 
 Aucun hasard. Le combat est entièrement déterministe.
 
+### Initiative et ordre de jeu
+
+Au début de chaque step, les unités sont triées par :
+1. `initiative` décroissante (haute initiative = agit en premier)
+2. En cas d'égalité : `attack_speed` décroissante (vitesse d'attaque la plus haute = agit en premier)
+
 ### Portée des attaques
 
 Toutes les unités utilisent la **distance de Manhattan** — `|dx| + |dy|` (4 directions cardinales uniquement, pas de diagonales).

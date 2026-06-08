@@ -48,8 +48,8 @@ export class CombatManager {
     const allUnits = [...this.playerUnits, ...this.enemyUnits];
     const livingUnits = allUnits.filter(u => u.isAlive());
 
-    // Sort by initiative descending for deterministic tie-breaking
-    livingUnits.sort((a, b) => b.initiative - a.initiative || a.uid - b.uid);
+    // Sort by initiative desc, tie-break by attack_speed desc
+    livingUnits.sort((a, b) => b.initiative - a.initiative || b.effectiveAttackSpeed() - a.effectiveAttackSpeed());
 
     // ── 1. Passive ticks (power gauge, DOT, paralysis, power block) ──
     for (const u of livingUnits) {
