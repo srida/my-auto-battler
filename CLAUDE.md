@@ -89,7 +89,7 @@ game/
 │   └── DeckRepository.js   ← localStorage (same interface as Godot)
 ├── logic/
 │   ├── Unit.js              ← État runtime d'une unité
-│   ├── Board.js             ← Source de vérité des positions (grille 5×8)
+│   ├── Board.js             ← Source de vérité des positions (grille 5×11)
 │   ├── GameState.js         ← Phases, tours, HP, multiplicateurs
 │   ├── CombatManager.js     ← Boucle de combat, step() → events[]
 │   ├── InvocationManager.js ← Validation + exécution des 5 types de summon
@@ -104,7 +104,7 @@ game/
     │   ├── GameScreen.js
     │   └── TestBench.js      ← Mode développeur
     └── components/
-        ├── BoardGrid.js      ← CSS Grid 5×8, gestion des cases
+        ├── BoardGrid.js      ← CSS Grid 5×11, gestion des cases
         ├── UnitCard.js       ← Affichage unité, HP bar, power gauge
         ├── HandUI.js         ← Main du joueur, scroll horizontal
         ├── Tooltip.js        ← Instance unique globale, tap-to-show
@@ -301,10 +301,11 @@ Après utilisation : bouton grisé. L'unité ressuscitée est de nouveau active 
 
 ## Board
 
-Taille : 5 colonnes × 8 rangées
+Taille : 5 colonnes × 11 rangées
 
 Joueur : rangées 0–3
-Ennemi : rangées 4–7
+Zone neutre : rangées 4–6 (inoccupables en préparation)
+Ennemi : rangées 7–10
 
 Maximum d'unités sur le board : **5** (6 avec certaines synergies d'archetype).
 
@@ -602,8 +603,8 @@ L'IA place les unités en deux passes :
 2. Cartes à invocation spéciale (peuvent consommer les unités posées)
 
 Arrangement post-placement (`rearrangeUnits`) :
-- Unités mêlée (range ≤ 1) → rangées 4–5 (front)
-- Unités à distance (range > 1) → rangées 6–7 (back)
+- Unités mêlée (range ≤ 1) → rangées 7–8 (front)
+- Unités à distance (range > 1) → rangées 9–10 (back)
 - Ordre de colonnes : `[2, 1, 3, 0, 4]` (centre vers bords)
 - HP le plus élevé → rangée la plus avancée dans chaque groupe
 - Maximum 3 unités par rangée, débordement vers la rangée suivante

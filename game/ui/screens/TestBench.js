@@ -76,7 +76,7 @@ export async function mount(container) {
 
   const boardArea = container.querySelector('#tb-board-area');
   const grid = new BoardGrid(boardArea, {
-    rows: 8,
+    rows: 11,
     onCellTap: handleCellTap,
     onUnitTap: handleUnitTap,
     onUnitDrag: handleUnitDrag,

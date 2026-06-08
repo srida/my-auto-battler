@@ -1,7 +1,7 @@
 export class Board {
   constructor() {
     this.cols = 5;
-    this.rows = 8;
+    this.rows = 11; // rows 0–3 player, 4–6 neutral, 7–10 enemy
     this.grid = this._emptyGrid();
   }
 
@@ -48,8 +48,9 @@ export class Board {
     return pos.col >= 0 && pos.col < this.cols && pos.row >= 0 && pos.row < this.rows;
   }
 
-  isPlayerCell(pos) { return pos.row >= 0 && pos.row <= 3; }
-  isEnemyCell(pos)  { return pos.row >= 4 && pos.row <= 7; }
+  isPlayerCell(pos)  { return pos.row >= 0 && pos.row <= 3; }
+  isNeutralCell(pos) { return pos.row >= 4 && pos.row <= 6; }
+  isEnemyCell(pos)   { return pos.row >= 7 && pos.row <= 10; }
 
   getUnitsOnSide(side) {
     const units = [];
@@ -100,7 +101,7 @@ export class Board {
   }
 
   firstEmptyEnemyCell() {
-    for (let r = 4; r <= 7; r++)
+    for (let r = 7; r <= 10; r++)
       for (let c = 0; c < this.cols; c++)
         if (!this.grid[c][r]) return { col: c, row: r };
     return null;

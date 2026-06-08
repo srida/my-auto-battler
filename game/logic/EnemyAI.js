@@ -4,7 +4,7 @@ const HAND_SIZE = 5;
 
 /**
  * EnemyAI
- * Draws from the enemy deck each round and places units on rows 4–7
+ * Draws from the enemy deck each round and places units on rows 7–10
  * using the same summon rules as the player (normal, sacrifice, fusion,
  * ritual, transformation). Graveyard units (neutralized last combat) are
  * available as materials during the preparation phase.
@@ -89,8 +89,8 @@ export class EnemyAI {
 
   /**
    * Rearrange all living enemy units on the board by role:
-   *   - Low range (melee/tanks) → front rows (4–5, closest to player)
-   *   - High range (ranged)     → back rows (6–7)
+   *   - Low range (melee/tanks) → front rows (7–8, closest to neutral zone)
+   *   - High range (ranged)     → back rows (9–10)
    *   Within each group, highest HP goes furthest forward.
    * Enforces maxUnits cap (excess units are dropped).
    * Updates initial_position so units return here after combat.
@@ -117,7 +117,7 @@ export class EnemyAI {
     const COL = [2, 1, 3, 0, 4];
 
     // Assign positions for a group: max 3 per row, then spill into next row.
-    // startRow: row 4 for melee (front), row 6 for ranged (or 5 if no melee).
+    // startRow: row 7 for melee (front), row 9 for ranged (or 8 if no melee).
     const assign = (group, startRow) =>
       group.map((u, i) => ({
         unit: u,
@@ -125,8 +125,8 @@ export class EnemyAI {
       }));
 
     const placements = [
-      ...assign(melee, 4),
-      ...assign(ranged, melee.length > 0 ? 6 : 5),
+      ...assign(melee, 7),
+      ...assign(ranged, melee.length > 0 ? 9 : 8),
     ];
 
     for (const { unit, pos } of placements) {
@@ -327,7 +327,7 @@ function _summonPriority(card) {
 
 function _freeCells(board) {
   const cells = [];
-  for (let row = 4; row <= 7; row++)
+  for (let row = 7; row <= 10; row++)
     for (let col = 0; col < 5; col++)
       if (!board.isOccupied({ col, row })) cells.push({ col, row });
   return cells;

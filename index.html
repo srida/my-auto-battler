@@ -700,8 +700,8 @@
    100vh - topbar(52) - archetype-panel(44) - speed-controls(56) - board-padding(12) = 164px
    dvh fallback accounts for mobile browser bar */
 .board-grid.combat-mode {
-  max-width: min(100%, calc((100vh - 165px) * 5 / 8));
-  max-width: min(100%, calc((100dvh - 165px) * 5 / 8));
+  max-width: min(100%, calc((100vh - 165px) * 5 / 11));
+  max-width: min(100%, calc((100dvh - 165px) * 5 / 11));
 }
 
 /* End-of-round overlay */
@@ -764,7 +764,7 @@
   z-index: 1;
 }
 
-/* ── Separator between enemy and player boards in combat mode ── */
+/* ── Separators between zones in combat mode ── */
 .combat-separator {
   grid-column: 1 / -1;
   height: 2px;
@@ -772,6 +772,11 @@
   margin: 4px 0 3px;
   pointer-events: none;
   opacity: 0.6;
+}
+/* Neutral zone cells (rows 4–6) — slightly dimmed to distinguish them */
+.board-cell.neutral-zone {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: rgba(136, 146, 176, 0.3);
 }
 
 /* ── Mobile: prevent iOS long-press from saving images ── */
@@ -888,7 +893,7 @@ img {
 }
 .tb-side-btn.active { color: var(--accent); border-bottom-color: var(--accent); background: #1c1840; }
 .tb-board-col .board-area { flex: 1; min-height: 0; padding: 4px; overflow: hidden; display: flex; align-items: flex-start; justify-content: center; }
-.tb-board-col .board-grid { max-width: min(100%, calc(85vh * 5 / 8)); }
+.tb-board-col .board-grid { max-width: min(100%, calc(85vh * 5 / 11)); }
 
 @media (max-width: 480px) {
   .tb-browser-col { width: 150px; }

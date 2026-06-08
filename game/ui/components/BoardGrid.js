@@ -63,10 +63,10 @@ export class BoardGrid {
     this.refresh();
   }
 
-  // Expand to 8-row combat view, render all units, then freeze DOM updates.
+  // Expand to 11-row combat view, render all units, then freeze DOM updates.
   enterCombatMode() {
     this._frozen = false;
-    this._displayRows = 8;
+    this._displayRows = 11;
     this._highlighted = new Set();
     this._materialCandidates = new Set();
     this._materialSelected = new Set();
@@ -109,8 +109,9 @@ export class BoardGrid {
         + (isMatSel  ? ' material-selected-cell' : '')
         + (unit      ? ' occupied' : '');
 
-      if (this._displayRows === 8 && row === 4) cell.classList.add('enemy-front');
-      if (this._displayRows === 8 && row === 3) cell.classList.add('player-front');
+      if (this._displayRows === 11 && row === 7) cell.classList.add('enemy-front');
+      if (this._displayRows === 11 && row === 3) cell.classList.add('player-front');
+      if (this._displayRows === 11 && row >= 4 && row <= 6) cell.classList.add('neutral-zone');
 
       const existingUnitEl = cell.querySelector('.unit-card');
 
@@ -146,8 +147,7 @@ export class BoardGrid {
     // Render rows top-to-bottom: high row index at top
     const maxRow = this._displayRows - 1;
     for (let row = maxRow; row >= 0; row--) {
-      // Separator between enemy (rows 4-7) and player (rows 0-3) in 8-row combat view
-      if (this._displayRows === 8 && row === 3) {
+      if (this._displayRows === 11 && (row === 6 || row === 3)) {
         const sep = document.createElement('div');
         sep.className = 'combat-separator';
         this._el.appendChild(sep);
