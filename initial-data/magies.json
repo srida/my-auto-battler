@@ -2,55 +2,45 @@
 	{
 		"id": "MAGIC_001",
 		"name": "Pot de Cupidité",
-		"description": "Piochez 2 cartes supplémentaires au début du prochain tour de combat.",
 		"effect": {
 			"type": "draw_bonus",
-			"value": 2,
-			"timing": "start_of_combat"
+			"value": 2
 		}
 	},
 	{
 		"id": "MAGIC_002",
 		"name": "Renforcement",
-		"description": "Augmente l'ATK de toutes vos unités de 15 au début du combat.",
 		"effect": {
 			"type": "stat_bonus",
 			"stat": "atk",
 			"value": 15,
-			"timing": "start_of_combat",
 			"target_archetypes": []
 		}
 	},
 	{
 		"id": "MAGIC_003",
 		"name": "Résurrection Sombre",
-		"description": "Réanime une unité neutralisée avec 50% de ses HP maximum.",
 		"effect": {
 			"type": "revive",
-			"value": 50,
-			"timing": "end_of_combat"
+			"value": 50
 		}
 	},
 	{
 		"id": "MAGIC_004",
 		"name": "Bouclier Sacré",
-		"description": "Applique un bouclier de 40 à toutes vos unités en début de combat.",
 		"effect": {
 			"type": "shield",
 			"value": 40,
-			"timing": "start_of_combat",
 			"target_archetypes": []
 		}
 	},
 	{
 		"id": "MAGIC_005",
 		"name": "Frappe du Dragon",
-		"description": "Multiplie l'ATK de vos Dragons par 1,5 pour toute la durée du combat.",
 		"effect": {
 			"type": "stat_modifier",
 			"stat": "atk",
 			"value": 1.5,
-			"timing": "start_of_combat",
 			"target_archetypes": ["ARCH_003"]
 		}
 	}
