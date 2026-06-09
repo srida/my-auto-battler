@@ -56,6 +56,10 @@ export function canSummon(card, pos, board, hand, graveyard = []) {
     }
 
     case 'transformation': {
+      if (card._free_transformation) {
+        if (board.isOccupied(pos)) return fail('Case occupée');
+        return ok();
+      }
       const targetId = card.cost?.materials?.[0];
       if (!targetId) return fail('Pas de cible de transformation définie');
       const onBoard = board.getUnitsOnSide('player').find(u => u.card_id === targetId && u.isAlive());
@@ -133,13 +137,15 @@ export function summon(card, pos, board, hand, sacrificeTargets = null, handIdx 
 
     case 'transformation': {
       _removeFromHand(hand, card.id, handIdx);
-      const targetId = card.cost?.materials?.[0];
-      // Prefer the explicitly-passed unit (fixes same-name ambiguity)
-      const targetUnit = sacrificeTargets?.find(u => u.card_id === targetId && u.isAlive())
-        ?? board.getUnitsOnSide('player').find(u => u.card_id === targetId && u.isAlive());
-      if (targetUnit) {
-        pos = { ...targetUnit.position };
-        board.removeUnit(targetUnit);
+      if (!card._free_transformation) {
+        const targetId = card.cost?.materials?.[0];
+        // Prefer the explicitly-passed unit (fixes same-name ambiguity)
+        const targetUnit = sacrificeTargets?.find(u => u.card_id === targetId && u.isAlive())
+          ?? board.getUnitsOnSide('player').find(u => u.card_id === targetId && u.isAlive());
+        if (targetUnit) {
+          pos = { ...targetUnit.position };
+          board.removeUnit(targetUnit);
+        }
       }
       break;
     }

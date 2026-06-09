@@ -4,7 +4,7 @@ const STAT_NAMES = {
 };
 
 export function needsUnitTarget(magie) {
-  return ['stat_bonus', 'stat_modifier', 'shield', 'heal'].includes(magie?.effect?.type);
+  return ['stat_bonus', 'stat_modifier', 'shield', 'heal', 'defuse_fusion'].includes(magie?.effect?.type);
 }
 
 export function needsGraveyardTarget(magie) {
@@ -23,7 +23,11 @@ export function effectLabel(magie) {
     case 'revive':           return `Réanime une unité du cimetière à ${e.value}% de ses PV`;
     case 'shield':           return `+${e.value} bouclier sur une unité`;
     case 'player_hp_bonus':  return `+${e.value} PV joueur`;
-    case 'board_slot_bonus': return `+${e.value} slot${e.value > 1 ? 's' : ''} de board permanent${e.value > 1 ? 's' : ''}`;
+    case 'board_slot_bonus':         return `+${e.value} slot${e.value > 1 ? 's' : ''} de board permanent${e.value > 1 ? 's' : ''}`;
+    case 'defuse_fusion':            return 'Sépare un monstre Fusion en ses matériaux';
+    case 'reduce_sacrifice_cost':    return `-${e.value ?? 1} sacrifice(s) sur une carte Sacrifice en main`;
+    case 'free_transformation':      return 'Invoque une Transformation sans son monstre cible';
+    case 'remove_ritual_material':   return 'Retire le matériel obligatoire d\'une carte Rituel en main';
     default: return e.type;
   }
 }
@@ -70,6 +74,18 @@ export function applyEffect(magie, { gameState = null, targetUnit = null } = {})
       break;
     case 'guaranteed_draw':
       if (gameState) gameState.player_guaranteed_draws.push({ tier: e.tier });
+      break;
+    case 'reduce_sacrifice_cost':
+      if (gameState) gameState.player_hand_modifiers.push({ type: 'reduce_sacrifice_cost', value: e.value ?? 1 });
+      break;
+    case 'free_transformation':
+      if (gameState) gameState.player_hand_modifiers.push({ type: 'free_transformation' });
+      break;
+    case 'remove_ritual_material':
+      if (gameState) gameState.player_hand_modifiers.push({ type: 'remove_ritual_material' });
+      break;
+    case 'defuse_fusion':
+      // Handled by GameScreen._defuseFusion() — applyEffect is a no-op here
       break;
   }
 }

@@ -64,5 +64,34 @@
 			"type": "guaranteed_draw",
 			"tier": 3
 		}
+	},
+	{
+		"id": "MAGIC_009",
+		"name": "Démantèlement",
+		"effect": {
+			"type": "defuse_fusion"
+		}
+	},
+	{
+		"id": "MAGIC_010",
+		"name": "Pacte du Sacrifice",
+		"effect": {
+			"type": "reduce_sacrifice_cost",
+			"value": 1
+		}
+	},
+	{
+		"id": "MAGIC_011",
+		"name": "Éveil Spontané",
+		"effect": {
+			"type": "free_transformation"
+		}
+	},
+	{
+		"id": "MAGIC_012",
+		"name": "Rituel Simplifié",
+		"effect": {
+			"type": "remove_ritual_material"
+		}
 	}
 ]

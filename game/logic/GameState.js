@@ -27,6 +27,7 @@ export class GameState {
     // Carry-over from previous rounds
     this.player_extra_draws = 0;   // accumulated draw_bonus
     this.player_guaranteed_draws = []; // [{ category, archetype }]
+    this.player_hand_modifiers = []; // [{ type, value? }] applied to drawn cards
   }
 
   // ── Phase transitions ──

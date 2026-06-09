@@ -6,6 +6,7 @@ import * as ArchetypeDatabase from '../../data/ArchetypeDatabase.js';
 import * as BoardDatabase from '../../data/BoardDatabase.js';
 import * as MagieDatabase from '../../data/MagieDatabase.js';
 import { applyEffect as applyMagieEffect, needsUnitTarget, needsGraveyardTarget, effectLabel as magieEffectLabel } from '../../logic/MagieEffect.js';
+import { Unit } from '../../logic/Unit.js';
 import { Board } from '../../logic/Board.js';
 import { GameState, Phase } from '../../logic/GameState.js';
 import { EnemyAI } from '../../logic/EnemyAI.js';
@@ -195,7 +196,7 @@ export async function mount(container, params = {}) {
     }
 
     // Transformation: tapping the target unit triggers the summon directly
-    if (selectedCard && selectedCard.summon_type === 'transformation') {
+    if (selectedCard && selectedCard.summon_type === 'transformation' && !selectedCard._free_transformation) {
       const targetId = selectedCard.cost?.materials?.[0];
       if (unit.card_id === targetId && unit.isAlive()) {
         // Pass the specific unit so InvocationManager uses the right one (fixes same-name ambiguity)
@@ -318,6 +319,15 @@ export async function mount(container, params = {}) {
       const materialsOnBoard = selectedMaterials.filter(u => !graveyard.includes(u)).length;
       const afterPlace = board.getLivingUnitsOnSide('player').length - materialsOnBoard + 1;
       if (afterPlace > gameState.player_board_slots) return [];
+    }
+
+    // For transformation with free flag → any empty player cell
+    if (card.summon_type === 'transformation' && card._free_transformation) {
+      const cells = [];
+      for (let r = 0; r <= 3; r++)
+        for (let c = 0; c < 5; c++)
+          if (!board.isOccupied({ col: c, row: r })) cells.push({ col: c, row: r });
+      return cells;
     }
 
     // For transformation:
@@ -638,6 +648,23 @@ export async function mount(container, params = {}) {
       }
     }
 
+    // Apply deferred hand modifiers (from magie effects chosen last round)
+    if (gameState.player_hand_modifiers.length) {
+      const modifiers = gameState.player_hand_modifiers.splice(0);
+      for (const mod of modifiers) {
+        if (mod.type === 'reduce_sacrifice_cost') {
+          const idx = hand.findIndex(c => c.summon_type === 'sacrifice' && (c.cost?.sacrifice ?? 0) > 0);
+          if (idx !== -1) hand[idx] = { ...hand[idx], cost: { ...hand[idx].cost, sacrifice: Math.max(0, (hand[idx].cost?.sacrifice ?? 0) - (mod.value || 1)) } };
+        } else if (mod.type === 'free_transformation') {
+          const idx = hand.findIndex(c => c.summon_type === 'transformation');
+          if (idx !== -1) hand[idx] = { ...hand[idx], _free_transformation: true };
+        } else if (mod.type === 'remove_ritual_material') {
+          const idx = hand.findIndex(c => c.summon_type === 'rituel' && (c.cost?.materials?.length ?? 0) > 0);
+          if (idx !== -1) hand[idx] = { ...hand[idx], cost: { ...hand[idx].cost, materials: [] } };
+        }
+      }
+    }
+
     handUI.setHand(hand);
 
     // Enemy draws and fills empty slots (survivors stay, graveyard available as material)
@@ -864,7 +891,13 @@ export async function mount(container, params = {}) {
     const _proceed = () => { gameState.nextRound(); startPreparation(); };
 
     if (needsUnitTarget(magie)) {
-      const targets = board.getLivingUnitsOnSide('player');
+      const isDefuse = magie.effect?.type === 'defuse_fusion';
+      const targets = isDefuse
+        ? board.getLivingUnitsOnSide('player').filter(u => {
+            const c = CardDatabase.getCard(u.card_id);
+            return c?.summon_type === 'fusion' && (c.cost?.materials?.length ?? 0) > 0;
+          })
+        : board.getLivingUnitsOnSide('player');
       if (!targets.length) { _proceed(); return; }
       grid.setHighlight(targets.map(u => u.position).filter(Boolean));
       const banner = _showShoppingBanner(`✨ ${magie.name} — Touchez une unité sur votre terrain`);
@@ -873,8 +906,12 @@ export async function mount(container, params = {}) {
         _shoppingUnitCallback = null;
         banner.remove();
         grid.clearHighlight();
-        applyMagieEffect(magie, { gameState, targetUnit: unit });
-        grid.refresh();
+        if (isDefuse) {
+          _defuseFusion(unit);
+        } else {
+          applyMagieEffect(magie, { gameState, targetUnit: unit });
+          grid.refresh();
+        }
         _proceed();
       };
     } else if (needsGraveyardTarget(magie)) {
@@ -910,6 +947,37 @@ export async function mount(container, params = {}) {
     banner.textContent = text;
     container.appendChild(banner);
     return banner;
+  }
+
+  function _defuseFusion(fusionUnit) {
+    const fusionCard = CardDatabase.getCard(fusionUnit.card_id);
+    const materials = fusionCard?.cost?.materials ?? [];
+    board.removeUnit(fusionUnit);
+    for (const matId of materials) {
+      const matCard = CardDatabase.getCard(matId);
+      if (!matCard) continue;
+      const matUnit = new Unit(matCard, 'player');
+      const currentCount = board.getLivingUnitsOnSide('player').length;
+      if (currentCount < gameState.player_board_slots) {
+        let emptyCell = null;
+        outer: for (let r = 0; r <= 3; r++)
+          for (let c = 0; c < 5; c++)
+            if (!board.isOccupied({ col: c, row: r })) { emptyCell = { col: c, row: r }; break outer; }
+        if (emptyCell) {
+          matUnit.initial_position = { ...emptyCell };
+          board.placeUnit(matUnit, emptyCell);
+        } else {
+          matUnit.is_neutralized = true;
+          graveyard.push(matUnit);
+        }
+      } else {
+        matUnit.is_neutralized = true;
+        graveyard.push(matUnit);
+      }
+    }
+    grid.refresh();
+    _refreshGraveyard();
+    _refreshArchetypePanel();
   }
 
   // ── End of round overlay ─────────────────────────────────────────────────
@@ -1000,6 +1068,7 @@ function _needsMaterials(card, board = null, graveyard = []) {
   if (card.summon_type === 'fusion')   return (card.cost?.materials?.length ?? 0) > 0;
   if (card.summon_type === 'rituel')   return (card.cost?.materials?.length ?? 0) > 0 || (card.cost?.sacrifice ?? 0) > 0;
   if (card.summon_type === 'transformation') {
+    if (card._free_transformation) return false;
     // Only needs explicit material selection when the target isn't alive on the board
     const targetId = card.cost?.materials?.[0];
     if (!targetId || !board) return false;
@@ -1100,6 +1169,7 @@ function _isPlayable(card, board, graveyard = [], maxSlots = Infinity) {
     return _getUncoveredRequirements(required, allUnits).length === 0;
   }
   if (card.summon_type === 'transformation') {
+    if (card._free_transformation) return _hasEmptyPlayerCell(board);
     const targetId = card.cost?.materials?.[0];
     if (!targetId) return false;
     return !!board.getUnitsOnSide('player').find(u => u.card_id === targetId && u.isAlive()) ||
