@@ -17,8 +17,8 @@ export function effectLabel(magie) {
   switch (e.type) {
     case 'stat_bonus':       return `+${e.value} ${STAT_NAMES[e.stat] || e.stat} sur une unité (permanent)`;
     case 'stat_modifier':    return `×${e.value} ${STAT_NAMES[e.stat] || e.stat} sur une unité (permanent)`;
-    case 'draw_bonus':       return `+${e.value} carte${e.value > 1 ? 's' : ''} piochée${e.value > 1 ? 's' : ''} au prochain tour`;
-    case 'guaranteed_draw':  return `Pioche garantie Tier ${e.tier} au prochain tour`;
+    case 'draw_bonus':       return `+${e.value} carte${e.value > 1 ? 's' : ''} supplémentaire${e.value > 1 ? 's' : ''} ce tour`;
+    case 'guaranteed_draw':  return `Pioche garantie Tier ${e.tier} ce tour`;
     case 'heal':             return `Soigne une unité de ${e.value} PV`;
     case 'revive':           return `Réanime une unité du cimetière à ${e.value}% de ses PV`;
     case 'shield':           return `+${e.value} bouclier sur une unité`;

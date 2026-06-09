@@ -631,18 +631,22 @@ export async function mount(container, params = {}) {
     const randomCount = Math.max(0, HAND_SIZE + extraDraws - guaranteedDraws.length);
     hand = _drawHand(cardsByTier, gameState.round, randomCount);
 
-    // Guaranteed draws bypass tier restrictions — search the full deck
+    // Guaranteed draws — filter by tier/archetype/category constraints
     const fullPool = Object.values(cardsByTier).flat();
     for (const draw of guaranteedDraws) {
       const matches = fullPool.filter(c =>
+        (!draw.tier      || c.tier === draw.tier) &&
         (!draw.archetype || c.archetypes?.includes(draw.archetype)) &&
         (!draw.category  || c.summon_type === draw.category)
       );
       if (matches.length > 0) {
         hand.push(matches[Math.floor(Math.random() * matches.length)]);
       } else {
-        // Fallback: any card matching just the archetype, then any card from full pool
-        const fallback = fullPool.filter(c => !draw.archetype || c.archetypes?.includes(draw.archetype));
+        // Fallback: relax tier, then any card from full pool
+        const fallback = fullPool.filter(c =>
+          (!draw.archetype || c.archetypes?.includes(draw.archetype)) &&
+          (!draw.category  || c.summon_type === draw.category)
+        );
         if (fallback.length > 0) hand.push(fallback[Math.floor(Math.random() * fallback.length)]);
         else if (fullPool.length > 0) hand.push(fullPool[Math.floor(Math.random() * fullPool.length)]);
       }
