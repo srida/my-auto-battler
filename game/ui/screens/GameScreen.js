@@ -631,11 +631,10 @@ export async function mount(container, params = {}) {
     const randomCount = Math.max(0, HAND_SIZE + extraDraws - guaranteedDraws.length);
     hand = _drawHand(cardsByTier, gameState.round, randomCount);
 
-    // Guaranteed draws — filter by tier/archetype/category constraints
+    // Guaranteed draws bypass tier restrictions — search the full deck
     const fullPool = Object.values(cardsByTier).flat();
     for (const draw of guaranteedDraws) {
       const matches = fullPool.filter(c =>
-        (!draw.tier      || c.tier === draw.tier) &&
         (!draw.archetype || c.archetypes?.includes(draw.archetype)) &&
         (!draw.category  || c.summon_type === draw.category)
       );
