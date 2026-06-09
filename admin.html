@@ -1555,6 +1555,7 @@ const EFFECT_TYPE_LABELS = {
   stat_modifier: 'Modificateur de stat',
   draw_bonus: 'Pioche',
   revive: 'Réanimation',
+  heal: 'Soin',
   shield: 'Bouclier',
   player_hp_bonus: 'Bonus HP joueur',
   board_slot_bonus: 'Slot de board',
@@ -1638,6 +1639,7 @@ function renderMagieDetail() {
           <option value="stat_modifier" ${effectType === 'stat_modifier' ? 'selected' : ''}>Modificateur de stat</option>
           <option value="draw_bonus" ${effectType === 'draw_bonus' ? 'selected' : ''}>Pioche supplémentaire</option>
           <option value="guaranteed_draw" ${effectType === 'guaranteed_draw' ? 'selected' : ''}>Pioche garantie (par tier)</option>
+          <option value="heal" ${effectType === 'heal' ? 'selected' : ''}>Soin (PV)</option>
           <option value="revive" ${effectType === 'revive' ? 'selected' : ''}>Réanimation (%HP)</option>
           <option value="shield" ${effectType === 'shield' ? 'selected' : ''}>Bouclier</option>
           <option value="player_hp_bonus" ${effectType === 'player_hp_bonus' ? 'selected' : ''}>Bonus HP joueur</option>

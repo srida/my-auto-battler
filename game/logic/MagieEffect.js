@@ -4,7 +4,7 @@ const STAT_NAMES = {
 };
 
 export function needsUnitTarget(magie) {
-  return ['stat_bonus', 'stat_modifier', 'shield'].includes(magie?.effect?.type);
+  return ['stat_bonus', 'stat_modifier', 'shield', 'heal'].includes(magie?.effect?.type);
 }
 
 export function needsGraveyardTarget(magie) {
@@ -19,6 +19,7 @@ export function effectLabel(magie) {
     case 'stat_modifier':    return `×${e.value} ${STAT_NAMES[e.stat] || e.stat} sur une unité (permanent)`;
     case 'draw_bonus':       return `+${e.value} carte${e.value > 1 ? 's' : ''} piochée${e.value > 1 ? 's' : ''} au prochain tour`;
     case 'guaranteed_draw':  return `Pioche garantie Tier ${e.tier} au prochain tour`;
+    case 'heal':             return `Soigne une unité de ${e.value} PV`;
     case 'revive':           return `Réanime une unité du cimetière à ${e.value}% de ses PV`;
     case 'shield':           return `+${e.value} bouclier sur une unité`;
     case 'player_hp_bonus':  return `+${e.value} PV joueur`;
@@ -45,6 +46,9 @@ export function applyEffect(magie, { gameState = null, targetUnit = null } = {})
         targetUnit._base[e.stat] = Math.max(1, base + Math.round(base * (e.value - 1)));
         targetUnit._recomputeStats();
       }
+      break;
+    case 'heal':
+      if (targetUnit) targetUnit.heal(e.value);
       break;
     case 'shield':
       if (targetUnit) targetUnit.applyShield(e.value);
