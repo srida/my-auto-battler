@@ -1743,7 +1743,13 @@ async function deleteMagie() {
 }
 
 function openNewMagie() {
-  selectedMagie = { id: 'MAGIC_NEW', name: '', effect: null, _has_illustration: false };
+  let maxNum = 0;
+  for (const m of magies) {
+    const match = m.id.match(/(\d+)$/);
+    if (match) maxNum = Math.max(maxNum, parseInt(match[1], 10));
+  }
+  const nextId = `MAGIE_${String(maxNum + 1).padStart(3, '0')}`;
+  selectedMagie = { id: nextId, name: '', effect: null, _has_illustration: false };
   isNewMagie = true;
   renderMagieList();
   renderMagieDetail();
