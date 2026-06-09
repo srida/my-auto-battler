@@ -53,6 +53,29 @@ export function stepToward(board, from, to) {
 }
 
 /**
+ * Like stepToward, but if the target is unreachable or the next step lands on
+ * an occupied cell (e.g. adjacent enemy with no LOS), falls back to the free
+ * neighbor of `from` that minimizes Manhattan distance to `to`.
+ * Never returns an occupied cell. Returns null only if all neighbors are blocked/occupied.
+ */
+export function stepTowardOrNearest(board, from, to) {
+  const step = stepToward(board, from, to);
+  if (step !== null) {
+    const occ = board.getUnit(step);
+    if (!occ || occ.is_neutralized) return step;
+  }
+  // No path or first step is occupied: find the free neighbor closest to target
+  let best = null, bestDist = Infinity;
+  for (const n of board.getNeighbors(from)) {
+    const occupant = board.getUnit(n);
+    if (occupant && !occupant.is_neutralized) continue;
+    const d = manhattanDistance(n, to);
+    if (d < bestDist) { bestDist = d; best = n; }
+  }
+  return best;
+}
+
+/**
  * Find the closest enemy to `unit` among `enemies`.
  * Returns { unit, distance } or null.
  */

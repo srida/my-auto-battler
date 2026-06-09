@@ -1,4 +1,4 @@
-import { chebyshevDistance, findClosestEnemy, findAttackTarget, isInAttackRange, canAttack, stepToward } from './PathFinder.js';
+import { chebyshevDistance, findClosestEnemy, findAttackTarget, isInAttackRange, canAttack, stepToward, stepTowardOrNearest } from './PathFinder.js';
 
 // Power constants
 const POWER_SUPER_ATTACK_MULT = 3;
@@ -98,16 +98,27 @@ export class CombatManager {
       const sorted = [...enemies].sort(
         (a, b) => chebyshevDistance(u.position, a.position) - chebyshevDistance(u.position, b.position)
       );
+      let moved = false;
       for (const target of sorted) {
-        if (canAttack(u, target, this.board)) break; // in range and has line of sight
+        if (canAttack(u, target, this.board)) { moved = true; break; } // in range and has line of sight
         const next = stepToward(this.board, u.position, target.position);
         if (next && !this.board.isOccupied(next)) {
           const from = { ...u.position };
           this.board.moveUnit(u, next);
           events.push({ type: 'move', unit: u, from, to: { ...u.position } });
+          moved = true;
           break;
         }
         // path blocked for this target → try next closest
+      }
+      // Fallback: all normal paths failed — get as close as possible to the primary target
+      if (!moved && sorted.length > 0) {
+        const next = stepTowardOrNearest(this.board, u.position, sorted[0].position);
+        if (next) {
+          const from = { ...u.position };
+          this.board.moveUnit(u, next);
+          events.push({ type: 'move', unit: u, from, to: { ...u.position } });
+        }
       }
     }
 
