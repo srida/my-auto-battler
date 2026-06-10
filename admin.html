@@ -377,6 +377,9 @@ select.filter:focus { border-color: var(--accent); }
             <option value="no">Sans illus.</option>
             <option value="yes">Avec illus.</option>
           </select>
+          <select class="filter" id="filter-archetype" onchange="filterCards()">
+            <option value="">Tous archétypes</option>
+          </select>
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="btn btn-primary btn-sm" onclick="openNewCard()">+ Nouvelle carte</button>
@@ -508,11 +511,20 @@ async function init() {
     apiFetch('/api/boards'),
     apiFetch('/api/magies'),
   ]);
+  populateArchetypeFilter();
   renderCardList();
   renderArchList();
   renderPowerList();
   renderBoardList();
   renderMagieList();
+}
+
+function populateArchetypeFilter() {
+  const sel = document.getElementById('filter-archetype');
+  if (!sel) return;
+  const sorted = [...archetypes].sort((a, b) => a.name.localeCompare(b.name));
+  sel.innerHTML = '<option value="">Tous archétypes</option>' +
+    sorted.map(a => `<option value="${a.id}">${a.icon ? a.icon + ' ' : ''}${a.name}</option>`).join('');
 }
 
 // ================== API ==================
@@ -561,11 +573,13 @@ function filterCards() {
   const tier = document.getElementById('filter-tier').value;
   const summon = document.getElementById('filter-summon').value;
   const illus = document.getElementById('filter-illus').value;
+  const archetype = document.getElementById('filter-archetype').value;
   const filtered = cards.filter(c =>
     (!q || c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q)) &&
     (!tier || Math.round(c.tier) == tier) &&
     (!summon || c.summon_type === summon) &&
-    (!illus || (illus === 'yes' ? c._has_illustration : !c._has_illustration))
+    (!illus || (illus === 'yes' ? c._has_illustration : !c._has_illustration)) &&
+    (!archetype || (c.archetypes || []).includes(archetype))
   );
   renderCardList(filtered);
 }
