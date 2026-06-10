@@ -1,7 +1,7 @@
 {
   "name": "ygo-platform",
   "version": "1.0.0",
-  "description": "Yu-Gi-Oh Auto-Battler — game + card manager",
+  "description": "Soulforge — game + card manager",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

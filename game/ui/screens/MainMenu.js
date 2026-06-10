@@ -4,9 +4,9 @@ export async function mount(container) {
   container.innerHTML = `
     <div class="main-menu">
       <div class="main-menu-hero">
-        <img src="/game/logo.png" class="main-menu-logo" alt="YGO Auto-Battler">
-        <h1 class="main-menu-title">YGO Auto-Battler</h1>
-        <p class="main-menu-subtitle">Auto-Chess × Yu-Gi-Oh × Marvel Snap</p>
+        <img src="/game/logo.png" class="main-menu-logo" alt="Soulforge">
+        <h1 class="main-menu-title">Soulforge</h1>
+        <p class="main-menu-subtitle">Auto-Chess × Tactiques × Cartes à invoquer</p>
       </div>
       <div class="main-menu-actions">
         <button class="btn btn-primary btn-full" id="btn-play">Jouer</button>

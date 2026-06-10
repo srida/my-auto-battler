@@ -45,12 +45,12 @@ function requireAuth(req, res, next) {
   if (!ADMIN_PASS) return next();
   const auth = req.headers.authorization || '';
   if (!auth.startsWith('Basic ')) {
-    res.set('WWW-Authenticate', 'Basic realm="YGO Card Manager"');
+    res.set('WWW-Authenticate', 'Basic realm="Soulforge Card Manager"');
     return res.status(401).send('Authentification requise');
   }
   const [user, pass] = Buffer.from(auth.slice(6), 'base64').toString().split(':');
   if (user !== ADMIN_USER || pass !== ADMIN_PASS) {
-    res.set('WWW-Authenticate', 'Basic realm="YGO Card Manager"');
+    res.set('WWW-Authenticate', 'Basic realm="Soulforge Card Manager"');
     return res.status(401).send('Identifiants incorrects');
   }
   next();

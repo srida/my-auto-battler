@@ -1,4 +1,4 @@
-# YGO Auto-Battler — Plan de migration Web
+# Soulforge — Plan de migration Web
 
 ## Contexte
 

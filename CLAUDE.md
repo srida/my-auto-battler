@@ -1,10 +1,9 @@
-# CLAUDE.md — YGO Auto-Battler (Web)
+# CLAUDE.md — Soulforge (Web)
 
 ## Project Overview
 
 Port web d'un Auto-Battler inspiré de :
 
-- Yu-Gi-Oh
 - Teamfight Tactics
 - Auto Chess
 - Marvel Snap
@@ -889,4 +888,4 @@ Préférer :
 
 Le jeu doit ressembler à :
 
-"Yu-Gi-Oh Auto Chess avec la cadence de Marvel Snap."
+"Auto Chess avec la cadence de Marvel Snap."
