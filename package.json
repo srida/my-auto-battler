@@ -1,5 +1,5 @@
 {
-  "name": "ygo-platform",
+  "name": "soulforge",
   "version": "1.0.0",
   "description": "Soulforge — game + card manager",
   "main": "server.js",

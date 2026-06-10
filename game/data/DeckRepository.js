@@ -1,6 +1,6 @@
-const STORAGE_KEY = 'ygo_autobattler_decks';
-const ACTIVE_KEY = 'ygo_autobattler_active_deck';
-const PENDING_EDIT_KEY = 'ygo_autobattler_pending_edit';
+const STORAGE_KEY = 'soulforge_decks';
+const ACTIVE_KEY = 'soulforge_active_deck';
+const PENDING_EDIT_KEY = 'soulforge_pending_edit';
 
 function load() {
   try {
