@@ -37,6 +37,7 @@ Terminé :
 - Combat animé (requestAnimationFrame)
 - Support mobile (Pointer Events)
 - **Système de terrains (boards)** — cases bloquées, LOS, effets de terrain
+- **Système de magies + Phase Shopping** — choix d'une magie parmi 3 après chaque combat (sauf dernier tour)
 
 En cours :
 
@@ -65,6 +66,7 @@ Repo : `https://github.com/srida/my-auto-battler`
 | `GET /api/archetypes` | Public | Archetypes |
 | `GET /api/powers` | Public | Pouvoirs |
 | `GET /api/boards` | Public | Terrains de combat |
+| `GET /api/magies` | Public | Magies (Phase Shopping) |
 | `POST/PUT/DELETE /api/*` | Auth | Écriture admin |
 | `GET /illustrations/:id` | Public | Art des cartes (PNG sans extension) |
 | `POST /api/cards/import` | Auth | Import en masse (mode skip/replace) |
@@ -88,6 +90,7 @@ game/
 │   ├── ArchetypeDatabase.js ← fetch /api/archetypes
 │   ├── PowerDatabase.js     ← fetch /api/powers
 │   ├── BoardDatabase.js     ← fetch /api/boards, cache mémoire
+│   ├── MagieDatabase.js     ← fetch /api/magies, cache mémoire
 │   └── DeckRepository.js   ← localStorage (same interface as Godot)
 ├── logic/
 │   ├── Unit.js              ← État runtime d'une unité
@@ -96,6 +99,7 @@ game/
 │   ├── CombatManager.js     ← Boucle de combat, step() → events[]
 │   ├── InvocationManager.js ← Validation + exécution des 5 types de summon
 │   ├── ArchetypeManager.js  ← Comptage archetypes + application des bonus
+│   ├── MagieEffect.js       ← Effets des magies (Phase Shopping)
 │   ├── PathFinder.js        ← BFS sur la grille
 │   └── EnemyAI.js           ← Placement IA, calcul multiplicateur
 └── ui/
@@ -137,6 +141,10 @@ await BoardDatabase.init()
 BoardDatabase.getBoard(id)
 BoardDatabase.getAllBoards()
 BoardDatabase.getRandomBoard()   // utilisé par GameScreen à chaque round de combat
+
+await MagieDatabase.init()
+MagieDatabase.getAllMagies()
+MagieDatabase.getRandomMagies(count = 3)   // utilisé par la Phase Shopping
 
 DeckRepository.saveDeck(name, deck)
 DeckRepository.loadDeck(name)
@@ -203,10 +211,11 @@ Chaque partie dure 5 tours.
 
 Pour chaque tour :
 
-1. Préparation (30 secondes — placement des cartes, Pot de Cupidité, Monster Reborn)
+1. Préparation (30 secondes — placement des cartes)
 2. Combat (auto-résolu, animé)
 3. Fin de combat (dégâts aux HP, nettoyage)
-4. Tour suivant
+4. Phase Shopping (sauf dernier tour) — choix d'une magie parmi 3
+5. Tour suivant
 
 Fin de partie :
 - Tour 5 terminé
@@ -262,47 +271,117 @@ Calculé dans `GameScreen.js` (côté joueur) et `EnemyAI.computeMultiplier()`.
 
 ---
 
-## Pot de Cupidité
+## Phase Shopping
 
-> ⚠️ Non implémenté — prévu Phase 8
+Après la phase de combat (et l'écran de résultat de fin de round), le joueur se voit proposer **3 magies aléatoires** avant de passer au tour suivant.
 
-Disponible pendant la phase de préparation. Utilisable une fois par tour.
+**Sautée** :
+- Sur le dernier tour / fin de partie (`gameState.isGameOver()`)
+- Si aucune magie n'est disponible (`MagieDatabase.getAllMagies()` vide)
 
-Effet : piocher 2 cartes supplémentaires.
+Implémentée entièrement dans `GameScreen.js` (pas d'écran/composant séparé) :
 
-Coût en HP :
+```js
+_showEndRound(winner)        // affiche le résultat du round, bouton "Tour suivant" / "Résultat final"
+_startShopping(winner)        // tire 3 magies via MagieDatabase.getRandomMagies(3)
+_applyChosenMagie(magie, winner)
+_showShoppingBanner(text)
+_defuseFusion(fusionUnit)
+```
 
-| Tour | Coût |
-|---|---|
-| 1 | 50 PV |
-| 2 | 75 PV |
-| 3 | 100 PV |
-| 4 | 150 PV |
-| 5 | 200 PV |
+### Flux
 
-Après utilisation : le bouton devient grisé pour le reste de la préparation.
+1. Overlay plein écran `.shopping-overlay` : titre "✨ Phase Shopping", sous-titre "Choisissez une magie", 3 cartes `.shopping-magie-card` (illustration ou icône ✨ par défaut, nom, description via `MagieEffect.effectLabel`).
+2. Tap sur une carte → choix définitif (les 2 autres sont perdues).
+3. Selon le type d'effet de la magie choisie :
+   - **Cible une unité du board joueur** (`needsUnitTarget`) → highlight des unités valides + bandeau "Touchez une unité sur votre terrain", attente via `_shoppingUnitCallback`.
+     - Cas `defuse_fusion` : ne cible que les unités Fusion vivantes ayant des matériaux (`card.summon_type === 'fusion' && cost.materials.length > 0`) → `_defuseFusion(unit)`.
+   - **Cible le cimetière** (`needsGraveyardTarget`, effet `revive`) → ouverture de la zone cimetière, bandeau "Touchez une unité dans le cimetière", attente via `_shoppingGraveyardCallback`. L'unité réanimée revient à `initial_position` (ou première case vide côté joueur) et quitte le cimetière.
+   - **Effet global** (`draw_bonus`, `player_hp_bonus`, `board_slot_bonus`, `guaranteed_draw`, `reduce_sacrifice_cost`, `free_transformation`, `remove_ritual_material`) → `applyMagieEffect(magie, { gameState })` appliqué immédiatement, sans ciblage.
+4. Une fois résolu → `gameState.nextRound()` puis `startPreparation()`.
+
+`_defuseFusion(fusionUnit)` retire l'unité Fusion du board, recrée chaque matériau de `card.cost.materials` comme nouvelle unité (placée sur une case vide côté joueur si un slot est disponible, sinon envoyée au cimetière, neutralisée).
 
 ---
 
-## Monster Reborn
+## Magies
 
-> ⚠️ Non implémenté — prévu Phase 8
+Système de cartes magiques tirées pendant la Phase Shopping. Chargées depuis `/api/magies`.
 
-Disponible à partir du tour 2. Utilisable une fois par tour.
+### Modèle de données
 
-Effet : ressusciter une unité neutralisée. L'unité revient avec 50% de ses HP maximum.
+`initial-data/magies.json` :
 
-Coût en HP (identique au Pot de Cupidité par tour).
+```json
+{
+  "id": "MAGIC_001",
+  "name": "Pot de Cupidité",
+  "effect": {
+    "type": "draw_bonus",
+    "value": 2
+  }
+}
+```
 
-Flux :
-1. Joueur active Monster Reborn
-2. Les unités neutralisées sont surlignées en violet
-3. Joueur sélectionne l'unité à ressusciter
-4. Les cases disponibles s'affichent en vert
-5. Joueur sélectionne la case de placement
-6. Bouton grisé pour le reste de la préparation
+- `id` — identifiant unique (`MAGIC_NNN` dans les données initiales, `MAGIE_NNN` auto-généré par l'admin)
+- `name`
+- `effect` — `{ type, ...paramètres }` ou `null`
+- `_has_illustration` (calculé côté serveur, non persisté)
 
-Après utilisation : bouton grisé. L'unité ressuscitée est de nouveau active sur le board.
+### MagieDatabase
+
+`game/data/MagieDatabase.js` — même pattern que `CardDatabase` / `PowerDatabase` / `BoardDatabase` :
+
+```js
+await MagieDatabase.init()              // fetch /api/magies, cache mémoire
+MagieDatabase.getAllMagies()
+MagieDatabase.getRandomMagies(count = 3) // tirage sans remise
+```
+
+### Types d'effets (`game/logic/MagieEffect.js`)
+
+`effectLabel(magie)` génère la description affichée, `applyEffect(magie, { gameState, targetUnit })` applique l'effet.
+
+| `type` | Champs | Effet |
+|---|---|---|
+| `stat_bonus` | `stat`, `value` | Bonus additif **permanent** sur `targetUnit._base[stat]` (min 1) + `_recomputeStats()`. Si `stat === 'hp'`, augmente aussi `current_hp`. |
+| `stat_modifier` | `stat`, `value` | Multiplicateur **permanent** : `_base[stat] += round(_base[stat] * (value - 1))` + `_recomputeStats()`. |
+| `heal` | `value` | `targetUnit.heal(value)` |
+| `shield` | `value` | `targetUnit.applyShield(value)` |
+| `revive` | `value` (% PV max) | Unité du **cimetière** : `is_neutralized = false`, `current_hp = round(max_hp * value/100)`. |
+| `player_hp_bonus` | `value` | `gameState.player_hp = min(player_hp + value, 1000)` |
+| `board_slot_bonus` | `value` | `gameState.player_board_slots += (value \|\| 1)` — slots permanents |
+| `draw_bonus` | `value` | `gameState.player_extra_draws += (value \|\| 1)` — pioches supplémentaires ce tour |
+| `guaranteed_draw` | `tier` | `gameState.player_guaranteed_draws.push({ tier })` |
+| `defuse_fusion` | — | No-op dans `applyEffect` ; géré par `GameScreen._defuseFusion()`. |
+| `reduce_sacrifice_cost` | `value` (déf. 1) | `gameState.player_hand_modifiers.push({ type: 'reduce_sacrifice_cost', value })` — réduit le coût en sacrifices d'une carte Sacrifice en main |
+| `free_transformation` | — | `gameState.player_hand_modifiers.push({ type: 'free_transformation' })` — invoque une Transformation sans son monstre cible |
+| `remove_ritual_material` | — | `gameState.player_hand_modifiers.push({ type: 'remove_ritual_material' })` — retire le matériel rituel obligatoire |
+
+**Helpers de routage** :
+- `needsUnitTarget(magie)` → `stat_bonus`, `stat_modifier`, `shield`, `heal`, `defuse_fusion` (cible une unité du board joueur)
+- `needsGraveyardTarget(magie)` → `revive` uniquement (cible une unité du cimetière)
+- Tous les autres types sont des effets globaux appliqués immédiatement.
+
+Les `player_hand_modifiers` (`reduce_sacrifice_cost`, `free_transformation`, `remove_ritual_material`) sont consommés au tour suivant (différé).
+
+### Admin panel
+
+Onglet "Magies" dans `admin.html` : CRUD complet, sélecteur `effect.type` avec champs conditionnels (`stat`, `value`, `tier`), import JSON en masse, gestion d'illustration. ID auto-généré au format `MAGIE_<next>`.
+
+### Routes API
+
+| Route | Accès | Description |
+|---|---|---|
+| `GET /api/magies` | Public | Liste toutes les magies |
+| `POST /api/magies` | Auth | Créer une magie |
+| `POST /api/magies/import` | Auth | Import en masse (mode skip/replace) |
+| `PUT /api/magies/:id` | Auth | Modifier une magie |
+| `DELETE /api/magies/:id` | Auth | Supprimer une magie |
+| `POST /api/magies/:id/illustration` | Auth | Upload illustration |
+| `DELETE /api/magies/:id/illustration` | Auth | Supprimer illustration |
+
+Incluses dans `GET /api/export` avec checksums illustrations.
 
 ---
 
