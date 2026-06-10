@@ -38,10 +38,7 @@ Terminé :
 - Support mobile (Pointer Events)
 - **Système de terrains (boards)** — cases bloquées, LOS, effets de terrain
 - **Système de magies + Phase Shopping** — choix d'une magie parmi 3 après chaque combat (sauf dernier tour)
-
-En cours :
-
-- Phase 7 — Polish mobile (safe areas, PWA, orientation, touch targets)
+- **Phase 7 — Polish mobile** : safe areas iOS (`env(safe-area-inset-*)`), PWA (`manifest.json`, bouton plein écran), avertissement orientation paysage, audit des touch targets (44px min)
 
 ---
 
@@ -906,6 +903,43 @@ Différences avec `GameScreen` :
 - Portrait recommandé ; afficher un message si l'utilisateur passe en paysage
 - `manifest.json` PWA : icône, nom, couleurs de thème
 - Bouton plein écran (Fullscreen API)
+
+---
+
+## Phase 7 — Polish Mobile
+
+### Safe areas (notch / home indicator iOS)
+
+`viewport-fit=cover` est défini dans `index.html`. Les insets sont appliqués via `env(safe-area-inset-*)` :
+
+- `#screen` (`game/game.css`) : `padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)` — protège tous les écrans (topbar, contenu, hand-ui, phase-controls, MainMenu) en une seule règle, car ils sont tous enfants de `#screen`.
+- `.overlay` (`position: fixed`, donc hors du padding de `#screen`) : `padding: max(16px, env(safe-area-inset-*))` sur chaque côté.
+- Les overlays internes au board (`.shopping-overlay`, `.end-round-overlay`, `.shopping-select-banner`) sont `position: absolute` dans `.game-layout`, donc déjà protégés par le padding de `#screen`.
+
+### PWA
+
+- `game/manifest.json` (servi via `/game/manifest.json`, `express.static`) : `name`, `short_name`, `display: standalone`, `orientation: portrait`, `theme_color`/`background_color: #0f1117`, icônes `game/icon-192.png` et `game/icon-512.png` (générées depuis `game/logo.png`, fond `--bg`).
+- `index.html` : `<link rel="manifest">`, `<link rel="apple-touch-icon">`, `<meta name="theme-color">`.
+- Bouton plein écran (Fullscreen API) sur `MainMenu` (`#btn-fullscreen`, en haut à droite) : `requestFullscreen()` / `exitFullscreen()`, icône mise à jour via l'event `fullscreenchange`. Masqué si l'API n'est pas supportée.
+
+### Orientation
+
+Avertissement plein écran en CSS pur (`game/game.css`), aucune logique JS :
+
+```css
+@media (orientation: landscape) and (hover: none) and (pointer: coarse) {
+  #screen { display: none; }
+  .orientation-warning { display: flex; /* ... */ }
+}
+```
+
+`.orientation-warning` (markup statique dans `index.html`, hors de `#screen`) n'est visible qu'en paysage sur un appareil tactile (`pointer: coarse`) — n'affecte pas les fenêtres desktop en paysage.
+
+### Touch targets
+
+`--touch-target: 44px` (déjà défini) appliqué aux éléments qui en manquaient :
+- `.topbar-back`, `.filter-pill`, `.speed-btn`, `.tb-terrain-select`, `.tb-terrain-info`, `.archetype-chip`, `.board-ind` → `min-height`/`min-width: var(--touch-target)`.
+- `.slot-remove` (badge de suppression sur un `.deck-slot` de 52px) : agrandi à 24×24px — un plein 44px chevaucherait excessivement le slot ; compromis documenté ici.
 
 ---
 

@@ -54,6 +54,7 @@ html, body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
 /* Utilitaires communs */
@@ -117,6 +118,11 @@ html, body {
   color: var(--muted);
   cursor: pointer;
   padding: 8px;
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: var(--radius-sm);
   line-height: 1;
 }
@@ -139,7 +145,7 @@ html, body {
   align-items: center;
   justify-content: center;
   z-index: 100;
-  padding: 16px;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
 }
 .modal {
   background: var(--surface);
@@ -151,3 +157,30 @@ html, body {
 }
 .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 16px; }
 .modal-actions { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; }
+
+/* Avertissement orientation — masqué par défaut, visible en paysage sur mobile/tablette tactile */
+.orientation-warning {
+  display: none;
+}
+@media (orientation: landscape) and (hover: none) and (pointer: coarse) {
+  #screen { display: none; }
+  .orientation-warning {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    text-align: center;
+    padding: 24px;
+    z-index: 1000;
+  }
+  .orientation-warning-icon { font-size: 48px; }
+  .orientation-warning-title { font-size: 1.2rem; font-weight: 800; }
+  .orientation-warning-text { color: var(--muted); font-size: 0.9rem; max-width: 320px; }
+}
