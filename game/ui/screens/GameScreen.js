@@ -897,6 +897,7 @@ export async function mount(container, params = {}) {
 
     if (needsUnitTarget(magie)) {
       const isDefuse = magie.effect?.type === 'defuse_fusion';
+      const isDestroy = magie.effect?.type === 'destroy_unit';
       const targets = isDefuse
         ? board.getLivingUnitsOnSide('player').filter(u => {
             const c = CardDatabase.getCard(u.card_id);
@@ -913,6 +914,8 @@ export async function mount(container, params = {}) {
         grid.clearHighlight();
         if (isDefuse) {
           _defuseFusion(unit);
+        } else if (isDestroy) {
+          _destroyUnit(unit);
         } else {
           applyMagieEffect(magie, { gameState, targetUnit: unit });
           grid.refresh();
@@ -980,6 +983,15 @@ export async function mount(container, params = {}) {
         graveyard.push(matUnit);
       }
     }
+    grid.refresh();
+    _refreshGraveyard();
+    _refreshArchetypePanel();
+  }
+
+  function _destroyUnit(unit) {
+    board.removeUnit(unit);
+    unit.is_neutralized = true;
+    graveyard.push(unit);
     grid.refresh();
     _refreshGraveyard();
     _refreshArchetypePanel();

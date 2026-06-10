@@ -93,5 +93,12 @@
 		"effect": {
 			"type": "remove_ritual_material"
 		}
+	},
+	{
+		"id": "MAGIC_013",
+		"name": "Sacrifice Volontaire",
+		"effect": {
+			"type": "destroy_unit"
+		}
 	}
 ]

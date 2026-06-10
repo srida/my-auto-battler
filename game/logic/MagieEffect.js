@@ -4,7 +4,7 @@ const STAT_NAMES = {
 };
 
 export function needsUnitTarget(magie) {
-  return ['stat_bonus', 'stat_modifier', 'shield', 'heal', 'defuse_fusion'].includes(magie?.effect?.type);
+  return ['stat_bonus', 'stat_modifier', 'shield', 'heal', 'defuse_fusion', 'destroy_unit'].includes(magie?.effect?.type);
 }
 
 export function needsGraveyardTarget(magie) {
@@ -25,6 +25,7 @@ export function effectLabel(magie) {
     case 'player_hp_bonus':  return `+${e.value} PV joueur`;
     case 'board_slot_bonus':         return `+${e.value} slot${e.value > 1 ? 's' : ''} de board permanent${e.value > 1 ? 's' : ''}`;
     case 'defuse_fusion':            return 'Sépare un monstre Fusion en ses matériaux';
+    case 'destroy_unit':             return 'Détruit une unité alliée (libère son emplacement, devient un matériau disponible au cimetière)';
     case 'reduce_sacrifice_cost':    return `-${e.value ?? 1} sacrifice(s) sur une carte Sacrifice en main`;
     case 'free_transformation':      return 'Invoque une Transformation sans son monstre cible';
     case 'remove_ritual_material':   return 'Retire le matériel obligatoire d\'une carte Rituel en main';
@@ -86,6 +87,9 @@ export function applyEffect(magie, { gameState = null, targetUnit = null } = {})
       break;
     case 'defuse_fusion':
       // Handled by GameScreen._defuseFusion() — applyEffect is a no-op here
+      break;
+    case 'destroy_unit':
+      // Handled by GameScreen._destroyUnit() — applyEffect is a no-op here
       break;
   }
 }

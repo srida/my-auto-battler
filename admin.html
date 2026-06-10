@@ -1575,6 +1575,7 @@ const EFFECT_TYPE_LABELS = {
   board_slot_bonus: 'Slot de board',
   guaranteed_draw: 'Pioche garantie',
   defuse_fusion: 'Séparer une fusion',
+  destroy_unit: 'Détruire une unité',
   reduce_sacrifice_cost: 'Réduire coût sacrifice',
   free_transformation: 'Transformation gratuite',
   remove_ritual_material: 'Retirer matériel rituel',
@@ -1617,7 +1618,7 @@ function renderMagieDetail() {
   const effectType = effect.type || 'none';
   const showStat = ['stat_bonus', 'stat_modifier'].includes(effectType);
   const showTier = effectType === 'guaranteed_draw';
-  const noValue = ['none', 'guaranteed_draw', 'defuse_fusion', 'free_transformation', 'remove_ritual_material'];
+  const noValue = ['none', 'guaranteed_draw', 'defuse_fusion', 'destroy_unit', 'free_transformation', 'remove_ritual_material'];
   const showValue = !noValue.includes(effectType);
   el.innerHTML = `
     <button class="back-btn" onclick="showList()">Retour à la liste</button>
@@ -1665,6 +1666,7 @@ function renderMagieDetail() {
           <option value="board_slot_bonus" ${effectType === 'board_slot_bonus' ? 'selected' : ''}>Slot de board supplémentaire</option>
           <optgroup label="Effets avancés">
           <option value="defuse_fusion" ${effectType === 'defuse_fusion' ? 'selected' : ''}>Séparer une Fusion en ses matériaux</option>
+          <option value="destroy_unit" ${effectType === 'destroy_unit' ? 'selected' : ''}>Détruire une unité alliée</option>
           <option value="reduce_sacrifice_cost" ${effectType === 'reduce_sacrifice_cost' ? 'selected' : ''}>Réduire coût de sacrifice (main)</option>
           <option value="free_transformation" ${effectType === 'free_transformation' ? 'selected' : ''}>Transformation gratuite (main)</option>
           <option value="remove_ritual_material" ${effectType === 'remove_ritual_material' ? 'selected' : ''}>Retirer matériel Rituel (main)</option>
@@ -1714,7 +1716,7 @@ function updateMagieEffectFields() {
   const type = document.getElementById('mf-effect-type')?.value || 'none';
   const showStat = ['stat_bonus', 'stat_modifier'].includes(type);
   const showTier = type === 'guaranteed_draw';
-  const noValue = ['none', 'guaranteed_draw', 'defuse_fusion', 'free_transformation', 'remove_ritual_material'];
+  const noValue = ['none', 'guaranteed_draw', 'defuse_fusion', 'destroy_unit', 'free_transformation', 'remove_ritual_material'];
   const showValue = !noValue.includes(type);
   document.getElementById('mf-stat-field').style.display = showStat ? '' : 'none';
   document.getElementById('mf-value-field').style.display = showValue ? '' : 'none';
@@ -1724,7 +1726,7 @@ function updateMagieEffectFields() {
 function _collectMagieFields() {
   const effectType = document.getElementById('mf-effect-type')?.value || 'none';
   let effect = null;
-  const noValue = ['defuse_fusion', 'free_transformation', 'remove_ritual_material'];
+  const noValue = ['defuse_fusion', 'destroy_unit', 'free_transformation', 'remove_ritual_material'];
   if (effectType !== 'none') {
     effect = { type: effectType };
     if (effectType === 'guaranteed_draw') {
