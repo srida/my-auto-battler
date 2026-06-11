@@ -794,13 +794,15 @@ export async function mount(container, params = {}) {
     for (const u of enemyUnits) u.resetCombatStats();
 
     // Enemy survivors return to their initial_position
-    for (const u of enemyUnits) {
-      if (!u.initial_position) continue;
-      const init = u.initial_position;
-      if (!board.isOccupied(init) || board.getUnit(init) === u) {
-        if (board.getUnit(u.position) === u &&
-            (u.position.col !== init.col || u.position.row !== init.row)) {
-          board.moveUnit(u, init);
+    {
+      const toReposition = enemyUnits.filter(u =>
+        u.initial_position &&
+        (u.position.col !== u.initial_position.col || u.position.row !== u.initial_position.row)
+      );
+      for (const u of toReposition) board.removeUnit(u);
+      for (const u of toReposition) {
+        if (!board.isOccupied(u.initial_position)) {
+          board.moveUnit(u, u.initial_position);
         }
       }
     }
@@ -830,14 +832,15 @@ export async function mount(container, params = {}) {
     }
 
     // Survivors return to initial_position
-    for (const u of board.getLivingUnitsOnSide('player')) {
-      if (u.initial_position) {
-        const init = u.initial_position;
-        if (!board.isOccupied(init) || board.getUnit(init) === u) {
-          if (board.getUnit(u.position) === u &&
-              (u.position.col !== init.col || u.position.row !== init.row)) {
-            board.moveUnit(u, init);
-          }
+    {
+      const toReposition = board.getLivingUnitsOnSide('player').filter(u =>
+        u.initial_position &&
+        (u.position.col !== u.initial_position.col || u.position.row !== u.initial_position.row)
+      );
+      for (const u of toReposition) board.removeUnit(u);
+      for (const u of toReposition) {
+        if (!board.isOccupied(u.initial_position)) {
+          board.moveUnit(u, u.initial_position);
         }
       }
     }
