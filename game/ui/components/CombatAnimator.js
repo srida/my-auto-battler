@@ -58,6 +58,7 @@ export class CombatAnimator {
       const events = this._cm.step();
       this._onStep?.(events);
       for (const evt of events) this._apply(evt);
+      this._refreshPowerGauges();
       if (this._cm.isOver) {
         this._running = false;
         setTimeout(() => this._onFinished?.(), 500);
@@ -65,6 +66,16 @@ export class CombatAnimator {
       }
       this._schedule();
     }, interval);
+  }
+
+  // Power gauges fill up every tick for all living units, even those that
+  // don't move/attack/take damage — refresh their bars so the UI stays in sync.
+  _refreshPowerGauges() {
+    for (const unit of [...this._cm.playerUnits, ...this._cm.enemyUnits]) {
+      if (!unit.isAlive()) continue;
+      const el = this._unitEl(unit.uid);
+      if (el) updateUnitEl(el, unit);
+    }
   }
 
   _cellEl(pos) {

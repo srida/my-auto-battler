@@ -103,6 +103,8 @@ export function unitHtml(unit, powerDb = null, archetypeDb = null) {
       <span>♥ ${unit.current_hp}/${unit.max_hp}</span>
       <span>⚡ ${unit.attack_speed}</span>
       <span>↔ ${unit.range}</span>
+      <span title="Vitesse de déplacement">🏃 ${unit.movement_speed}</span>
+      <span title="Initiative">🎯 ${unit.initiative}</span>
     </div>
     ${archetypeNames.length ? `<div class="tip-archetypes">${archetypeNames.map(n => `<span class="badge">${esc(n)}</span>`).join('')}</div>` : ''}
     ${unit.shield > 0 ? `<div class="tip-power">🛡 Shield : ${unit.shield}</div>` : ''}

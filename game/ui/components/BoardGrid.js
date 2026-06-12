@@ -1,4 +1,4 @@
-import { createUnitEl } from './UnitCard.js';
+import { createUnitEl, updateUnitEl } from './UnitCard.js';
 import * as Tooltip from './Tooltip.js';
 
 const COLS = 5;
@@ -134,6 +134,7 @@ export class BoardGrid {
           + (isSel    ? ' selected' : '')
           + (isMatSel ? ' material-selected' : '')
           + (unit.is_neutralized ? ' neutralized' : '');
+        updateUnitEl(existingUnitEl, unit);
         return;
       }
 
