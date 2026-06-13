@@ -705,12 +705,13 @@ export async function mount(container, params = {}) {
     grid.setBlockedCells(boardData?.blocked_cells || []);
     _showBoardIndicator(boardData);
 
-    // Multipliers (enemy hand and units already set during preparation)
-    gameState.startCombat(hand.length, enemyHand.length);
-    _showCombatMultipliers();
-
     // Player units + archetypes
     const playerUnits = board.getLivingUnitsOnSide('player');
+
+    // Multipliers based on units present on the board at start of combat
+    gameState.startCombat(playerUnits.length, enemyUnits.length);
+    _showCombatMultipliers();
+
     const archetypeList = ArchetypeDatabase.getAllArchetypes();
     const archetypeManager = new ArchetypeManager(archetypeList, playerUnits, enemyUnits);
     archetypeManager.applyStartOfCombat();

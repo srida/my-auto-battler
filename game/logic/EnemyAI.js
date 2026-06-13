@@ -135,9 +135,13 @@ export class EnemyAI {
     }
   }
 
-  /** Damage multiplier formula (symmetric with player). */
-  computeMultiplier(handSize) {
-    return 1.0 + handSize / 10.0;
+  /** Damage multiplier formula, based on units on the board at start of combat (symmetric with player). */
+  computeMultiplier(unitCount) {
+    if (unitCount >= 5) return 1.0;
+    if (unitCount === 4) return 1.2;
+    if (unitCount === 3) return 1.5;
+    if (unitCount === 2) return 2.0;
+    return 3.0; // 0 or 1 unit on the board
   }
 }
 

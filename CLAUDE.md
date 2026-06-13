@@ -250,21 +250,26 @@ Ordre de priorité de résolution : Transformation > Rituel > Fusion > Pioche no
 
 ## Damage Multiplier
 
-Chaque tour commence avec un multiplicateur de 1.0.
+Le multiplicateur est calculé au lancement du combat, en fonction du nombre d'unités présentes sur le terrain de chaque côté :
 
-```js
-multiplier = 1.0 + cards_in_hand / 10.0
-```
+| Unités sur le terrain | Multiplicateur |
+|---|---|
+| ≥ 5 | 1.0 |
+| 4 | 1.2 |
+| 3 | 1.5 |
+| 2 | 2.0 |
+| 0–1 | 3.0 |
 
-Appliqué symétriquement. Tension risk/reward : garder des cartes en main booste les dégâts sortants mais affaiblit le board.
+Appliqué symétriquement (calculé indépendamment pour chaque côté). Tension risk/reward : un board peu rempli encaisse moins de dégâts entrants mais en infligera davantage en cas de victoire.
 
 Implémenté dans `GameState.js` :
 ```js
+gameState.startCombat(playerUnitCount, enemyUnitCount)  // calcule player_multiplier / enemy_multiplier
 gameState.player_multiplier
 gameState.enemy_multiplier
 ```
 
-Calculé dans `GameScreen.js` (côté joueur) et `EnemyAI.computeMultiplier()`.
+Calculé dans `GameScreen.js` (`runCombat()`, via `board.getLivingUnitsOnSide()`) et `EnemyAI.computeMultiplier()`.
 
 ---
 

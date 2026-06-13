@@ -32,14 +32,18 @@ export class GameState {
 
   // ── Phase transitions ──
 
-  startCombat(playerHandSize, enemyHandSize) {
+  startCombat(playerUnitCount, enemyUnitCount) {
     this.phase = Phase.COMBAT;
-    this.player_multiplier = this._multiplier(playerHandSize);
-    this.enemy_multiplier  = this._multiplier(enemyHandSize);
+    this.player_multiplier = this._multiplier(playerUnitCount);
+    this.enemy_multiplier  = this._multiplier(enemyUnitCount);
   }
 
-  _multiplier(handSize) {
-    return 1.0 + handSize / 10.0;
+  _multiplier(unitCount) {
+    if (unitCount >= 5) return 1.0;
+    if (unitCount === 4) return 1.2;
+    if (unitCount === 3) return 1.5;
+    if (unitCount === 2) return 2.0;
+    return 3.0; // 0 or 1 unit on the board
   }
 
   /**
