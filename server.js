@@ -10,7 +10,7 @@ app.use(express.json({ limit: '20mb' }));
 
 // --- Config (env vars for production, local defaults for dev) ---
 const IS_PROD = process.env.NODE_ENV === 'production';
-const PROJECT_ROOT = path.resolve(__dirname, '../..');
+const PROJECT_ROOT = __dirname;
 
 const DATA_DIR       = process.env.DATA_DIR  || path.join(PROJECT_ROOT, 'data');
 const ILLUS_DIR      = process.env.ILLUS_DIR || path.join(PROJECT_ROOT, 'resources', 'card_illustrations');
@@ -530,6 +530,25 @@ app.get('/api/export/illustration/:id', (req, res) => {
   const filePath = path.join(ILLUS_DIR, `${req.params.id}.png`);
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Not found' });
   res.json({ id: req.params.id, data: fs.readFileSync(filePath).toString('base64') });
+});
+
+// --- Generic illustration upload/delete (utilisé par scripts/sync-data.js) ---
+app.put('/api/illustrations/:id', (req, res) => {
+  const { data } = req.body;
+  if (!data) return res.status(400).json({ error: 'data (base64) required' });
+  const destPath = path.join(ILLUS_DIR, `${req.params.id}.png`);
+  try {
+    fs.writeFileSync(destPath, Buffer.from(data, 'base64'));
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/illustrations/:id', (req, res) => {
+  const filePath = path.join(ILLUS_DIR, `${req.params.id}.png`);
+  try {
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // --- Download helper ---

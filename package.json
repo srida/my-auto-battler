@@ -4,7 +4,9 @@
   "description": "Soulforge — game + card manager",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "sync:pull": "node scripts/sync-data.js pull",
+    "sync:push": "node scripts/sync-data.js push"
   },
   "dependencies": {
     "express": "^4.18.2",
