@@ -380,6 +380,10 @@ select.filter:focus { border-color: var(--accent); }
           <select class="filter" id="filter-archetype" onchange="filterCards()">
             <option value="">Tous archétypes</option>
           </select>
+          <select class="filter" id="filter-power" onchange="filterCards()">
+            <option value="">Tous pouvoirs</option>
+            <option value="none">Aucun pouvoir</option>
+          </select>
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="btn btn-primary btn-sm" onclick="openNewCard()">+ Nouvelle carte</button>
@@ -512,6 +516,7 @@ async function init() {
     apiFetch('/api/magies'),
   ]);
   populateArchetypeFilter();
+  populatePowerFilter();
   renderCardList();
   renderArchList();
   renderPowerList();
@@ -525,6 +530,14 @@ function populateArchetypeFilter() {
   const sorted = [...archetypes].sort((a, b) => a.name.localeCompare(b.name));
   sel.innerHTML = '<option value="">Tous archétypes</option>' +
     sorted.map(a => `<option value="${a.id}">${a.icon ? a.icon + ' ' : ''}${a.name}</option>`).join('');
+}
+
+function populatePowerFilter() {
+  const sel = document.getElementById('filter-power');
+  if (!sel) return;
+  const sorted = [...powers].sort((a, b) => a.name.localeCompare(b.name));
+  sel.innerHTML = '<option value="">Tous pouvoirs</option><option value="none">Aucun pouvoir</option>' +
+    sorted.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
 }
 
 // ================== API ==================
@@ -574,12 +587,14 @@ function filterCards() {
   const summon = document.getElementById('filter-summon').value;
   const illus = document.getElementById('filter-illus').value;
   const archetype = document.getElementById('filter-archetype').value;
+  const power = document.getElementById('filter-power').value;
   const filtered = cards.filter(c =>
     (!q || c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q)) &&
     (!tier || Math.round(c.tier) == tier) &&
     (!summon || c.summon_type === summon) &&
     (!illus || (illus === 'yes' ? c._has_illustration : !c._has_illustration)) &&
-    (!archetype || (c.archetypes || []).includes(archetype))
+    (!archetype || (c.archetypes || []).includes(archetype)) &&
+    (!power || (power === 'none' ? !(c.power && c.power.id) : (c.power && c.power.id === power)))
   );
   renderCardList(filtered);
 }
