@@ -349,4 +349,3 @@ Ces règles sont héritées du projet Godot et s'appliquent à la version web :
 - [x] Phase 5 — Board UI
 - [x] Phase 6 — Combat visuel
 - [ ] Phase 7 — Polish mobile
-- [ ] Phase 8 — Features manquantes du GDD (Pot de Cupidité, Monster Reborn, indicateurs visuels)
